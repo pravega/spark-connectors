@@ -1,0 +1,64 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
+apply plugin: 'java'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+compileJava {
+    options.compilerArgs.addAll([
+            "-Xlint:deprecation",
+            "-Xlint:divzero",
+            "-Xlint:empty",
+            "-Xlint:fallthrough",
+            "-Xlint:finally",
+            "-Xlint:overrides",
+            "-Xlint:path",
+            "-Werror"
+    ])
+}
+
+archivesBaseName = "pravega-connectors-spark"
+
+assemble.dependsOn(shadowJar)
+
+task sourceJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.java
+}
+
+task javadocJar(type: Jar) {
+    classifier = 'javadoc'
+    from javadoc
+}
+
+task testJar(type: Jar) {
+    classifier = 'tests'
+    from sourceSets.test.output
+}
+
+artifacts {
+    shadow sourceJar
+    shadow javadocJar
+    testRuntime testJar
+}
+
+tasks.withType(Test) {
+    systemProperties 'logback.configurationFile' : new File(buildDir,'resources/test/logback.xml').absolutePath
+    testLogging.showStandardStreams = false
+    testLogging.exceptionFormat = "FULL"
+    testLogging.showCauses = true
+    testLogging.showExceptions = true
+    testLogging.showStackTraces = true
+    testLogging.events = ["PASSED", "FAILED"]
+    maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 1
+    minHeapSize = "128m"
+    maxHeapSize = "512m"
+}
