@@ -1,0 +1,124 @@
+/*
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath "com.github.jengelman.gradle.plugins:shadow:${shadowGradlePlugin}"
+        classpath "com.jfrog.bintray.gradle:gradle-bintray-plugin:${bintrayPluginVersion}"
+        classpath "org.ajoberstar:gradle-git:${gradleGitPluginVersion}"
+    }
+}
+
+apply plugin: 'eclipse'
+apply plugin: 'checkstyle'
+apply from: 'gradle/java.gradle'
+apply from: "gradle/scala.gradle"
+apply from: 'gradle/maven.gradle'
+
+apply from: 'gradle/bintray.gradle'
+apply plugin: 'org.ajoberstar.grgit'
+
+group = "io.pravega"
+
+//version = getProjectVersion()
+version = connectorVersion
+
+description = """Pravega Spark Connector"""
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+repositories {
+    mavenLocal()
+    if (findProperty("repositoryUrl")) {
+        maven {
+            url findProperty("repositoryUrl")
+        }
+    }
+    else {
+        jcenter()
+        mavenCentral()
+        maven { url "https://repository.apache.org/snapshots" }
+        maven { url "https://oss.sonatype.org/content/repositories/snapshots" }
+        maven { url "https://oss.jfrog.org/jfrog-dependencies" }
+    }
+}
+
+configurations {
+    shadowOnly {
+    }
+}
+
+dependencies {
+    compile(group: 'io.pravega', name: 'pravega-client', version: pravegaVersion) {
+        exclude group: 'org.slf4j', module: 'slf4j-api'
+        exclude group: 'log4j', module: 'log4j'
+    }
+
+    compile group: 'org.scala-lang', name: 'scala-library', version: scalaVersion
+    compile group: 'org.scala-lang', name: 'scala-reflect', version: scalaVersion
+    compile group: 'org.scala-lang', name: 'scala-compiler', version: scalaVersion
+    compile group: 'org.scala-lang.modules', name: 'scala-java8-compat_2.11', version: scalaJava8CompatVersion
+
+    testCompile group: 'junit', name: 'junit', version: junitVersion
+    testCompile(group: 'io.pravega', name: 'pravega-standalone', version: pravegaVersion) {
+        exclude group: 'com.sun.jersey', module: 'jersey-core'
+    }
+    testCompile group: 'org.mockito', name: 'mockito-all', version: mockitoVersion
+    testCompile group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion
+
+    compileOnly group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion
+
+    shadowOnly group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
+    shadowOnly group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion
+}
+
+configurations {
+    shadowOnly {
+    }
+}
+
+test {
+    dependsOn 'cleanTest'
+}
+
+shadowJar {
+    classifier = null
+    version = version
+    zip64 = true
+    mergeServiceFiles()
+
+    relocate 'io.netty', 'io.pravega.shaded.io.netty'
+    relocate 'com.google', 'io.pravega.shaded.com.google'
+}
+
+javadoc {
+    title = "Pravega Spark Connector"
+    failOnError = false
+    exclude "**/impl/**";
+}
+
+def getProjectVersion() {
+    String ver = connectorVersion
+    if (ver.contains("-SNAPSHOT")) {
+        String versionLabel = ver.substring(0, ver.indexOf("-SNAPSHOT"))
+        def count = grgit.log(includes:['HEAD']).size()
+        def commitId = "${grgit.head().abbreviatedId}"
+        ver = versionLabel + "-" + count + "." + commitId + "-SNAPSHOT"
+    }
+    return ver
+}
