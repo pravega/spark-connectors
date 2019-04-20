@@ -26,6 +26,12 @@ import org.apache.spark.sql.types.StructType
 import scala.collection.JavaConverters._
 
 
+object Encoding extends Enumeration {
+  type Encoding = Value
+  val None: Value = Value("none")
+  val Chunked_v1: Value = Value("chunked_v1")
+}
+
 class PravegaSourceProvider extends DataSourceV2
   with MicroBatchReadSupport
   with DataSourceRegister
@@ -36,6 +42,7 @@ class PravegaSourceProvider extends DataSourceV2
   private val SCOPE = "scope"
   private val STREAM = "stream"
   private val TRANSACTION_TIMEOUT_MS = "transaction_timeout_ms"
+  private val ENCODING_KEY = "encoding"
 
   private val DEFAULT_CONTROLLER = "tcp://localhost:9090"
   private val DEFAULT_TRANSACTION_TIMEOUT_MS: Long = 30000
@@ -55,8 +62,9 @@ class PravegaSourceProvider extends DataSourceV2
     val controllerURI = URI.create(caseInsensitiveParams.getOrElse(CONTROLLER, "tcp://localhost:9090"))
     val scopeName = caseInsensitiveParams.getOrElse(SCOPE, "")
     val streamName = caseInsensitiveParams.getOrElse(STREAM, "")
+    val encoding = Encoding.withName(caseInsensitiveParams.getOrElse(ENCODING_KEY, Encoding.None.toString))
 
-    log.info(s"createMicroBatchReader: controllerURI=${controllerURI}, scopeName=${scopeName}, streamName=${streamName}")
+    log.info(s"createMicroBatchReader: controllerURI=${controllerURI}, scopeName=${scopeName}, streamName=${streamName}, encoding=${encoding}")
 
     val clientConfig = ClientConfig.builder()
       .controllerURI(controllerURI)
@@ -66,6 +74,7 @@ class PravegaSourceProvider extends DataSourceV2
       scopeName,
       streamName,
       clientConfig,
+      encoding,
       options)
   }
 
