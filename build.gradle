@@ -73,6 +73,7 @@ dependencies {
     compile group: 'org.scala-lang', name: 'scala-reflect', version: scalaVersion
     compile group: 'org.scala-lang', name: 'scala-compiler', version: scalaVersion
     compile group: 'org.scala-lang.modules', name: 'scala-java8-compat_2.11', version: scalaJava8CompatVersion
+    compile group: 'com.jsuereth', name: 'scala-arm_2.11', version: '2.0'
 
     testCompile group: 'junit', name: 'junit', version: junitVersion
     testCompile(group: 'io.pravega', name: 'pravega-standalone', version: pravegaVersion) {
