@@ -126,11 +126,8 @@ case class PravegaMicroBatchInputPartitionReader(
   private val clientFactory = ClientFactory.withScope(segmentRange.getScope, clientConfig)
   private val batchClient = clientFactory.createBatchClient()
   private val rawIterator = batchClient.readSegment(segmentRange, new ByteBufferSerializer)
-  private val iterator = if (encoding == Encoding.Chunked_v1) {
-    new ChunkedV1EventIterator(rawIterator)
-  } else {
-    rawIterator
-  }
+  private val iterator = EventIterator(rawIterator, encoding)
+
   private val converter = new PravegaRecordToUnsafeRowConverter
   private var nextRow: UnsafeRow = _
 

@@ -11,20 +11,18 @@ package io.pravega.connectors.spark
 
 import java.net.URI
 import java.util.{Locale, Optional}
-
 import io.pravega.client.ClientConfig
 import io.pravega.client.admin.StreamManager
 import io.pravega.client.stream.StreamConfiguration
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.sources.DataSourceRegister
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
 import org.apache.spark.sql.sources.v2.reader.streaming.MicroBatchReader
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
 import org.apache.spark.sql.sources.v2.{DataSourceOptions, DataSourceV2, MicroBatchReadSupport, StreamWriteSupport}
 import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types.StructType
-
 import scala.collection.JavaConverters._
-
 
 object Encoding extends Enumeration {
   type Encoding = Value
@@ -34,6 +32,7 @@ object Encoding extends Enumeration {
 
 class PravegaSourceProvider extends DataSourceV2
   with MicroBatchReadSupport
+  with RelationProvider
   with DataSourceRegister
   with StreamWriteSupport
   with Logging {
@@ -79,6 +78,41 @@ class PravegaSourceProvider extends DataSourceV2
   }
 
   /**
+    * Returns a new base relation with the given parameters.
+    *
+    * @note The parameters' keywords are case insensitive and this insensitivity is enforced
+    *       by the Map that is passed to the function.
+    */
+  override def createRelation(
+                               sqlContext: SQLContext,
+                               parameters: Map[String, String]): BaseRelation = {
+
+    log.info(s"createRelation: parameters=${parameters}")
+    validateBatchOptions(parameters)
+    val caseInsensitiveParams = parameters.map { case (k, v) => (k.toLowerCase(Locale.ROOT), v) }
+
+    val controllerURI = URI.create(caseInsensitiveParams.getOrElse(CONTROLLER, "tcp://localhost:9090"))
+    val scopeName = caseInsensitiveParams.getOrElse(SCOPE, "")
+    val streamName = caseInsensitiveParams.getOrElse(STREAM, "")
+    val encoding = Encoding.withName(caseInsensitiveParams.getOrElse(ENCODING_KEY, Encoding.None.toString))
+
+    log.info(s"createRelation: controllerURI=${controllerURI}, scopeName=${scopeName}, streamName=${streamName}, encoding=${encoding}")
+
+    val clientConfig = ClientConfig.builder()
+      .controllerURI(controllerURI)
+      .build()
+    createStream(scopeName, streamName, clientConfig)
+
+    new PravegaRelation(
+      sqlContext,
+      parameters,
+      scopeName,
+      streamName,
+      clientConfig,
+      encoding)
+  }
+
+  /**
     * Creates an optional {@link StreamWriter} to save the data to this data source. Data
     * sources can return None if there is no writing needed to be done.
     *
@@ -120,7 +154,11 @@ class PravegaSourceProvider extends DataSourceV2
   }
 
   private def validateStreamOptions(caseInsensitiveParams: Map[String, String]): Unit = {
-    // TODO
+    // TODO: validate options
+  }
+
+  private def validateBatchOptions(caseInsensitiveParams: Map[String, String]): Unit = {
+    // TODO: validate options
   }
 
   private def createStream(scopeName: String, streamName: String, clientConfig: ClientConfig): Unit = {

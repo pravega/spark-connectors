@@ -10,10 +10,8 @@
 package io.pravega.connectors.spark
 
 import java.nio.{BufferUnderflowException, ByteBuffer}
-
 import io.pravega.client.batch.SegmentIterator
 import org.apache.spark.internal.Logging
-
 import scala.collection.mutable.ArrayBuffer
 
 final case class ChunkDecodeException(private val message: String = "") extends RuntimeException(message)
@@ -141,6 +139,18 @@ object ChunkedV1Event {
       ChunkedV1Event(version, chunkIndex, finalChunkIndex, event)
     } else {
       throw ChunkDecodeException(s"Unknown chunked event version ${version}")
+    }
+  }
+}
+
+object EventIterator {
+  def apply(rawIterator: SegmentIterator[ByteBuffer], encoding: Encoding.Value): SegmentIterator[ByteBuffer] = {
+    if (encoding == Encoding.Chunked_v1) {
+      new ChunkedV1EventIterator(rawIterator)
+    } else if (encoding == Encoding.None) {
+      rawIterator
+    } else {
+      throw new IllegalArgumentException()
     }
   }
 }
