@@ -39,6 +39,7 @@ import scala.collection.JavaConverters._
 class PravegaMicroBatchReader(scopeName: String,
                               streamName: String,
                               clientConfig: ClientConfig,
+                              encoding: Encoding.Value,
                               options: DataSourceOptions) extends MicroBatchReader with Logging {
 
   private val streamManager = StreamManager.create(clientConfig)
@@ -78,7 +79,7 @@ class PravegaMicroBatchReader(scopeName: String,
       .getIterator
       .asScala
       .toList
-      .map(PravegaMicroBatchInputPartition(_, clientConfig): InputPartition[InternalRow])
+      .map(PravegaMicroBatchInputPartition(_, clientConfig, encoding): InputPartition[InternalRow])
       .asJava
   }
 
@@ -109,20 +110,27 @@ class PravegaMicroBatchReader(scopeName: String,
 /** A [[InputPartition]] for reading Pravega data in a micro-batch streaming query. */
 case class PravegaMicroBatchInputPartition(
                                             segmentRange: SegmentRange,
-                                            clientConfig: ClientConfig) extends InputPartition[InternalRow] {
+                                            clientConfig: ClientConfig,
+                                            encoding: Encoding.Value) extends InputPartition[InternalRow] {
 
   override def createPartitionReader(): InputPartitionReader[InternalRow] =
-    PravegaMicroBatchInputPartitionReader(segmentRange, clientConfig)
+    PravegaMicroBatchInputPartitionReader(segmentRange, clientConfig, encoding)
 }
 
 /** A [[InputPartitionReader]] for reading Pravega data in a micro-batch streaming query. */
 case class PravegaMicroBatchInputPartitionReader(
                                                   segmentRange: SegmentRange,
-                                                  clientConfig: ClientConfig) extends InputPartitionReader[InternalRow] with Logging {
+                                                  clientConfig: ClientConfig,
+                                                  encoding: Encoding.Value) extends InputPartitionReader[InternalRow] with Logging {
 
   private val clientFactory = ClientFactory.withScope(segmentRange.getScope, clientConfig)
   private val batchClient = clientFactory.createBatchClient()
-  private val iterator = batchClient.readSegment(segmentRange, new ByteBufferSerializer)
+  private val rawIterator = batchClient.readSegment(segmentRange, new ByteBufferSerializer)
+  private val iterator = if (encoding == Encoding.Chunked_v1) {
+    new ChunkedV1EventIterator(rawIterator)
+  } else {
+    rawIterator
+  }
   private val converter = new PravegaRecordToUnsafeRowConverter
   private var nextRow: UnsafeRow = _
 

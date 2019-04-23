@@ -32,6 +32,8 @@ that use Pravega as the stream storage and message bus, and Apache Spark for com
 
   - Parallel Readers and Writers supporting high throughput and low latency processing.
 
+  - Reader supports reassembling chunked events to support events of 2 GiB.
+
 ## Limitations
 
   - Continuous reader support is not available. The micro-batch reader uses the Pravega batch API and works well for
@@ -45,6 +47,18 @@ that use Pravega as the stream storage and message bus, and Apache Spark for com
 
   - Pravega [issue 3463](https://github.com/pravega/pravega/issues/3463) impacts long-running
     Spark Streaming jobs that write to Pravega.
+
+### Build and Install the Spark Connector
+
+This will build the Spark Connector and publish it to your local Maven repository.
+
+```
+cd
+git clone https://github.com/pravega/spark-connectors
+cd spark-connectors
+./gradlew install
+ls -lhR ~/.m2/repository/io/pravega/pravega-connectors-spark
+```
 
 ## Documentation
 
