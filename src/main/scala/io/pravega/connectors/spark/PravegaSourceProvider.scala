@@ -7,6 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
+
 package io.pravega.connectors.spark
 
 import java.net.URI
@@ -68,7 +69,7 @@ class PravegaSourceProvider extends DataSourceV2
     val clientConfig = ClientConfig.builder()
       .controllerURI(controllerURI)
       .build()
-    createStream(scopeName, streamName, clientConfig)
+    createStream(scopeName, streamName, clientConfig,numSegments = 1)
     new PravegaMicroBatchReader(
       scopeName,
       streamName,
@@ -101,7 +102,7 @@ class PravegaSourceProvider extends DataSourceV2
     val clientConfig = ClientConfig.builder()
       .controllerURI(controllerURI)
       .build()
-    createStream(scopeName, streamName, clientConfig)
+    createStream(scopeName, streamName, clientConfig, numSegments = 1)
 
     new PravegaRelation(
       sqlContext,
@@ -148,7 +149,7 @@ class PravegaSourceProvider extends DataSourceV2
     val clientConfig = ClientConfig.builder()
       .controllerURI(controllerURI)
       .build()
-    createStream(scopeName, streamName, clientConfig)
+    createStream(scopeName, streamName, clientConfig,numSegments = 1)
 
     new PravegaStreamWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
   }
@@ -160,8 +161,14 @@ class PravegaSourceProvider extends DataSourceV2
   private def validateBatchOptions(caseInsensitiveParams: Map[String, String]): Unit = {
     // TODO: validate options
   }
-
-  private def createStream(scopeName: String, streamName: String, clientConfig: ClientConfig): Unit = {
+   /**
+    *
+    * @param scopeName
+    * @param streamName
+    * @param clientConfig
+    * @param numSegments
+    */
+  private def createStream(scopeName: String, streamName: String, clientConfig: ClientConfig,numSegments :Int): Unit = {
     val streamManager = StreamManager.create(clientConfig)
     try {
       streamManager.createScope(scopeName)
@@ -169,7 +176,7 @@ class PravegaSourceProvider extends DataSourceV2
         StreamConfiguration.builder
           .scope(scopeName)
           .streamName(streamName)
-          // TODO: set scaling policy
+          .scalingPolicy(ScalingPolicy.fixed(numSegments))
           .build())
     } finally {
       streamManager.close()
