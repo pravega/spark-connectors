@@ -24,6 +24,8 @@ that use Pravega as the stream storage and message bus, and Apache Spark for com
 
   - A Spark V2 data source micro-batch reader connector allows Spark Streaming applications to read Pravega Streams.
     Pravega stream cuts are used to reliably recover from failures and provide exactly-once semantics.
+    
+  - A Spark base relation data source batch reader connector allows Spark batch applications to read Pravega Streams.
 
   - A Spark V2 data source stream writer allows Spark Streaming applications to write to Pravega Streams.
     Writes are contained within Pravega transactions, providing exactly-once semantics.
@@ -36,14 +38,16 @@ that use Pravega as the stream storage and message bus, and Apache Spark for com
 
 ## Limitations
 
+  - The current implementation of this connector does *not* guarantee that events with the same routing key
+    are returned in a single partition. 
+    If your application requires this, you must repartition the dataframe by the routing key and sort within the
+    partition by segment_id and offset.
+
   - Continuous reader support is not available. The micro-batch reader uses the Pravega batch API and works well for
     applications with latency requirements above 100 milliseconds.
 
   - The initial batch in the micro-batch reader will contain the entire Pravega stream as of the start time.
     There is no rate limiting functionality.
-
-  - This connector has not been tested with Spark batch application.
-    However, the Hadoop connector can be used for this.
 
   - Pravega [issue 3463](https://github.com/pravega/pravega/issues/3463) impacts long-running
     Spark Streaming jobs that write to Pravega.
