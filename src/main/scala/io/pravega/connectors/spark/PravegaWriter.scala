@@ -27,19 +27,21 @@ import io.pravega.connectors.spark.PravegaSourceProvider._
 case class PravegaWriterCommitMessage(transactionId: UUID) extends WriterCommitMessage
 
 /**
-  * A [[StreamWriter]] for Pravega writing. Responsible for generating the writer factory.
+  * Both a [[StreamWriter]] and a [[DataSourceWriter]] for Pravega writing.
+  * Responsible for generating the writer factory.
   * It uses Pravega transactions to support exactly-once semantics.
+  * Used by both streaming and batch jobs.
   *
   * @param transactionTimeoutTime   The number of milliseconds for transactions to timeout.
   * @param schema                   The schema of the input data.
   */
-class PravegaStreamWriter(
-                           scopeName: String,
-                           streamName: String,
-                           clientConfig: ClientConfig,
-                           transactionTimeoutTime: Long,
-                           schema: StructType)
-  extends StreamWriter with Logging {
+class PravegaWriter(
+                     scopeName: String,
+                     streamName: String,
+                     clientConfig: ClientConfig,
+                     transactionTimeoutTime: Long,
+                     schema: StructType)
+  extends DataSourceWriter with StreamWriter with Logging {
 
   private lazy val clientFactory = ClientFactory.withScope(scopeName, clientConfig)
   private lazy val writer: EventStreamWriter[ByteBuffer] = clientFactory.createEventWriter(
@@ -49,8 +51,8 @@ class PravegaStreamWriter(
       .transactionTimeoutTime(transactionTimeoutTime)
       .build)
 
-  override def createWriterFactory(): PravegaStreamWriterFactory =
-    PravegaStreamWriterFactory(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
+  override def createWriterFactory(): PravegaWriterFactory =
+    PravegaWriterFactory(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
 
   override def commit(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {
     messages
@@ -59,18 +61,18 @@ class PravegaStreamWriter(
       .filter(_ != null)
       .par
       .foreach { transactionId =>
-      val transaction = writer.getTxn(transactionId)
-      val status = transaction.checkStatus
-      if (status == Transaction.Status.COMMITTED || status == Transaction.Status.COMMITTING) {
-        log.info(s"commit: transaction=${transactionId}, already committed")
-      } else if (status == Transaction.Status.OPEN) {
-        log.info(s"commit: transaction=${transactionId}, committing")
-        transaction.commit()
-      } else {
-        // ABORTED or ABORTING
-        throw new TxnFailedException()
+        val transaction = writer.getTxn(transactionId)
+        val status = transaction.checkStatus
+        if (status == Transaction.Status.COMMITTED || status == Transaction.Status.COMMITTING) {
+          log.info(s"commit: transaction=${transactionId}, already committed")
+        } else if (status == Transaction.Status.OPEN) {
+          log.info(s"commit: transaction=${transactionId}, committing")
+          transaction.commit()
+        } else {
+          // ABORTED or ABORTING
+          throw new TxnFailedException()
+        }
       }
-    }
   }
 
   override def abort(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {
@@ -88,6 +90,12 @@ class PravegaStreamWriter(
         }
       }
   }
+
+  // Used for batch writer.
+  override def commit(messages: Array[WriterCommitMessage]): Unit = commit(0, messages)
+
+  // Used for batch writer.
+  override def abort(messages: Array[WriterCommitMessage]): Unit = abort(0, messages)
 }
 
 /**
@@ -97,7 +105,7 @@ class PravegaStreamWriter(
   * @param transactionTimeoutTime   The number of milliseconds for transactions to timeout.
   * @param schema                   The schema of the input data.
   */
-case class PravegaStreamWriterFactory(
+case class PravegaWriterFactory(
                                        scopeName: String,
                                        streamName: String,
                                        clientConfig: ClientConfig,
@@ -109,7 +117,7 @@ case class PravegaStreamWriterFactory(
                                  partitionId: Int,
                                  taskId: Long,
                                  epochId: Long): DataWriter[InternalRow] = {
-    new PravegaStreamDataWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
+    new PravegaDataWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
   }
 }
 
@@ -120,7 +128,7 @@ case class PravegaStreamWriterFactory(
   * @param transactionTimeoutTime   The number of milliseconds for transactions to timeout.
   * @param inputSchema              The attributes in the input data.
   */
-class PravegaStreamDataWriter(
+class PravegaDataWriter(
                                scopeName: String,
                                streamName: String,
                                clientConfig: ClientConfig,
