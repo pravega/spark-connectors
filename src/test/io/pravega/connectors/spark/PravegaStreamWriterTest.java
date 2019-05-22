@@ -12,7 +12,6 @@ import org.mockito.Mockito;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.*;
 
 
@@ -23,7 +22,7 @@ public class PravegaStreamWriterTest {
     private static final String STREAM_NAME = "stream";
     private static final String ROUTING_KEY = "key";
     private static final StructType Schema  = PravegaReader.pravegaSchema();
-    private UUID txnId ;
+    private UUID txnId =UUID.randomUUID();
     final long transactionTimeout = 5000;
 
     @Mock
@@ -43,11 +42,7 @@ public class PravegaStreamWriterTest {
      * @throws InterruptedException
      */
     @Test
-    public void commit() throws TxnFailedException, InterruptedException {
-
-
-
-        msg = new PravegaWriterCommitMessage(txnId);
+    public void commitTest() throws TxnFailedException, InterruptedException {
 
         when(clientFactory.<String>createEventWriter(anyObject(),anyObject(),anyObject())).thenReturn(pravegaWriter);
         when(pravegaWriter.beginTxn()).thenReturn(txn);
@@ -59,9 +54,6 @@ public class PravegaStreamWriterTest {
         Thread.sleep(2000);
         verify(txn,times(1)).commit();
 
-
-
-
         pravegaWriter.close();
         pravegaWriter.flush();
         txn.flush();
@@ -69,15 +61,13 @@ public class PravegaStreamWriterTest {
         verify(pravegaWriter).close();
         verify(txn,times(1)).flush();
 
-        assertNotNull(msg);
-
     }
 
 
     Transaction<String> txn2= mockTransaction();
 
     @Test
-    public void abort() throws Exception {
+    public void abortTest() throws Exception {
 
         when(pravegaWriter.beginTxn()).thenReturn(txn2);
 
