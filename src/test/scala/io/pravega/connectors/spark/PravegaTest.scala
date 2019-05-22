@@ -9,14 +9,10 @@
  */
 package io.pravega.connectors.spark
 
-import java.nio.ByteBuffer
+import org.scalatest.BeforeAndAfterAll
 
-object ByteBufferUtil {
-  def concatenate(buffers: Seq[ByteBuffer]): ByteBuffer = {
-    val totalSize = buffers.map(_.remaining).sum
-    val output = ByteBuffer.allocate(totalSize)
-    buffers.foreach(output.put)
-    output.flip()
-    output
-  }
+import org.apache.spark.SparkFunSuite
+
+trait PravegaTest extends BeforeAndAfterAll {
+  self: SparkFunSuite =>
 }

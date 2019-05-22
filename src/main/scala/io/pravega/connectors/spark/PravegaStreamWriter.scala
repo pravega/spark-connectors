@@ -10,6 +10,7 @@
 package io.pravega.connectors.spark
 
 import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 import io.pravega.client.stream.impl.ByteBufferSerializer
@@ -21,6 +22,7 @@ import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Cast, Lite
 import org.apache.spark.sql.sources.v2.writer._
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
 import org.apache.spark.sql.types.{BinaryType, StringType, StructType}
+import io.pravega.connectors.spark.PravegaSourceProvider._
 
 case class PravegaWriterCommitMessage(transactionId: UUID) extends WriterCommitMessage
 
@@ -126,9 +128,6 @@ class PravegaStreamDataWriter(
                                inputSchema: StructType)
   extends DataWriter[InternalRow] with Logging {
 
-  val ROUTING_KEY_ATTRIBUTE_NAME: String = "routing_key"
-  val EVENT_ATTRIBUTE_NAME: String = "event"
-
   protected val projection = createProjection
 
   private lazy val clientFactory = ClientFactory.withScope(scopeName, clientConfig)
@@ -143,9 +142,14 @@ class PravegaStreamDataWriter(
   private var transaction: Transaction[ByteBuffer] = null
 
   def write(row: InternalRow): Unit = {
-    log.info(s"write: row=${row}")
     val projectedRow = projection(row)
     val event = projectedRow.getBinary(1)
+    val eventToLog = if (log.isDebugEnabled) {
+      val s = new String(event, StandardCharsets.UTF_8)
+      val maxLength = 100
+      if (s.length > maxLength) s.substring(0, maxLength) + "..." else s
+    } else null
+
     if (transaction == null) {
       transaction = writer.beginTxn()
       log.info(s"write: began transaction ${transaction.getTxnId}")
@@ -154,11 +158,11 @@ class PravegaStreamDataWriter(
     val haveRoutingKey = !projectedRow.isNullAt(0)
     if (haveRoutingKey) {
       val routingKey = projectedRow.getUTF8String(0).toString
-      log.info(s"write: routingKey=${routingKey}, event=${event}")
+      log.debug(s"write: routingKey=${routingKey}, event=${eventToLog}")
       transaction.writeEvent(routingKey, ByteBuffer.wrap(event))
     } else {
       transaction.writeEvent(ByteBuffer.wrap(event))
-      log.info(s"write: event=${event}")
+      log.debug(s"write: event=${eventToLog}")
     }
   }
 
@@ -205,7 +209,7 @@ class PravegaStreamDataWriter(
       case StringType => // good
       case t =>
         throw new IllegalStateException(s"$ROUTING_KEY_ATTRIBUTE_NAME " +
-          s"attribute unsupported type ${t.catalogString}")
+          s"attribute type must be a string; received unsupported type ${t.catalogString}")
     }
 
     val eventExpression = attributes
@@ -217,7 +221,7 @@ class PravegaStreamDataWriter(
       case StringType | BinaryType => // good
       case t =>
         throw new IllegalStateException(s"$EVENT_ATTRIBUTE_NAME " +
-          s"attribute unsupported type ${t.catalogString}")
+          s"attribute type must be a string or binary; received unsupported type ${t.catalogString}")
     }
 
     UnsafeProjection.create(

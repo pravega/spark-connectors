@@ -40,13 +40,30 @@ class PravegaMicroBatchReader(scopeName: String,
                               streamName: String,
                               clientConfig: ClientConfig,
                               encoding: Encoding.Value,
-                              options: DataSourceOptions) extends MicroBatchReader with Logging {
+                              options: DataSourceOptions,
+                              startStreamCut: PravegaStreamCut,
+                              endStreamCut: PravegaStreamCut) extends MicroBatchReader with Logging {
 
   private val streamManager = StreamManager.create(clientConfig)
   private val clientFactory = ClientFactory.withScope(scopeName, clientConfig)
   private val batchClient = clientFactory.createBatchClient()
-  private var startStreamCut: StreamCut = _
-  private var endStreamCut: StreamCut = _
+  private var batchStartStreamCut: StreamCut = _
+  private var batchEndStreamCut: StreamCut = _
+
+  // Resolve start and end stream cuts now.
+  private lazy val initialStreamInfo = streamManager.getStreamInfo(scopeName, streamName)
+  private val resolvedStartStreamCut = startStreamCut match {
+    case EarliestStreamCut | UnboundedStreamCut => initialStreamInfo.getHeadStreamCut
+    case LatestStreamCut => initialStreamInfo.getTailStreamCut
+    case SpecificStreamCut(sc) => sc
+  }
+  private val resolvedEndStreamCut = endStreamCut match {
+    case EarliestStreamCut => Some(initialStreamInfo.getHeadStreamCut)
+    case LatestStreamCut => Some(initialStreamInfo.getTailStreamCut)
+    case SpecificStreamCut(sc) => Some(sc)
+    case UnboundedStreamCut => None
+  }
+  log.info(s"resolvedStartStreamCut=${resolvedStartStreamCut}, resolvedEndStreamCut=${resolvedEndStreamCut}")
 
   /**
     * Set the desired offset range for input partitions created from this reader. Partition readers
@@ -60,22 +77,37 @@ class PravegaMicroBatchReader(scopeName: String,
     *              or the start offset plus a target batch size.
     */
   override def setOffsetRange(start: ju.Optional[Offset], end: ju.Optional[Offset]): Unit = {
-    val streamInfo = streamManager.getStreamInfo(scopeName, streamName)
+    log.info(s"setOffsetRange(${start},${end})")
 
-    startStreamCut = Option(start.orElse(null))
+    lazy val streamInfo = streamManager.getStreamInfo(scopeName, streamName)
+
+    batchStartStreamCut = Option(start.orElse(null))
       .map(_.asInstanceOf[PravegaSourceOffset].streamCut)
-      .getOrElse(streamInfo.getHeadStreamCut)
+      .getOrElse(resolvedStartStreamCut)
 
-    endStreamCut = Option(end.orElse(null))
+    batchEndStreamCut = Option(end.orElse(null))
       .map(_.asInstanceOf[PravegaSourceOffset].streamCut)
-      .getOrElse(streamInfo.getTailStreamCut)
+      .getOrElse(resolvedEndStreamCut.getOrElse(streamInfo.getTailStreamCut))
 
-    log.info(s"setOffsetRange(${start},${end}): startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}")
+    log.info(s"setOffsetRange(${start},${end}): batchStartStreamCut=${batchStartStreamCut}, batchEndStreamCut=${batchEndStreamCut}")
   }
 
+  /**
+    * Returns a list of {@link InputPartition}s. Each {@link InputPartition} is responsible for
+    * creating a data reader to output data of one RDD partition. The number of input partitions
+    * returned here is the same as the number of RDD partitions this scan outputs.
+    *
+    * Note that, this may not be a full scan if the data source reader mixes in other optimization
+    * interfaces like column pruning, filter push-down, etc. These optimizations are applied before
+    * Spark issues the scan request.
+    *
+    * If this method fails (by throwing an exception), the action will fail and no Spark job will be
+    * submitted.
+    */
   override def planInputPartitions(): ju.List[InputPartition[InternalRow]] = {
+    log.info("planInputPartitions")
     batchClient
-      .getSegments(Stream.of(scopeName, streamName), startStreamCut, endStreamCut)
+      .getSegments(Stream.of(scopeName, streamName), batchStartStreamCut, batchEndStreamCut)
       .getIterator
       .asScala
       .toList
@@ -84,11 +116,11 @@ class PravegaMicroBatchReader(scopeName: String,
   }
 
   override def getStartOffset: Offset = {
-    PravegaSourceOffset(startStreamCut)
+    PravegaSourceOffset(batchStartStreamCut)
   }
 
   override def getEndOffset: Offset = {
-    PravegaSourceOffset(endStreamCut)
+    PravegaSourceOffset(batchEndStreamCut)
   }
 
   override def deserializeOffset(json: String): Offset = {
@@ -168,14 +200,4 @@ case class PravegaMicroBatchInputPartitionReader(
     iterator.close()
     clientFactory.close()
   }
-}
-
-object PravegaReader {
-  def pravegaSchema: StructType = StructType(Seq(
-    StructField("event", BinaryType),
-    StructField("scope", StringType),
-    StructField("stream", StringType),
-    StructField("segment_id", LongType),
-    StructField("offset", LongType)
-  ))
 }

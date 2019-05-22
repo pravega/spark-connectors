@@ -11,17 +11,19 @@ package io.pravega.connectors.spark
 
 import java.net.URI
 import java.util.{Locale, Optional}
+
 import io.pravega.client.ClientConfig
 import io.pravega.client.admin.StreamManager
-import io.pravega.client.stream.StreamConfiguration
+import io.pravega.client.stream.{ScalingPolicy, StreamConfiguration, StreamCut}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
 import org.apache.spark.sql.sources.v2.reader.streaming.MicroBatchReader
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
 import org.apache.spark.sql.sources.v2.{DataSourceOptions, DataSourceV2, MicroBatchReadSupport, StreamWriteSupport}
+import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
 import org.apache.spark.sql.streaming.OutputMode
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types._
+
 import scala.collection.JavaConverters._
 
 object Encoding extends Enumeration {
@@ -37,17 +39,11 @@ class PravegaSourceProvider extends DataSourceV2
   with StreamWriteSupport
   with Logging {
 
-  private val CONTROLLER = "controller"
-  private val SCOPE = "scope"
-  private val STREAM = "stream"
-  private val TRANSACTION_TIMEOUT_MS = "transaction_timeout_ms"
-  private val ENCODING_KEY = "encoding"
-
   private val DEFAULT_CONTROLLER = "tcp://localhost:9090"
   private val DEFAULT_TRANSACTION_TIMEOUT_MS: Long = 30000
 
   /** String that represents the format that this data source provider uses. */
-  override def shortName(): String = "pravega"
+  override def shortName(): String = PravegaSourceProvider.SOURCE_PROVIDER_NAME
 
   override def createMicroBatchReader(
                                        schema: Optional[StructType],
@@ -55,30 +51,39 @@ class PravegaSourceProvider extends DataSourceV2
                                        options: DataSourceOptions): MicroBatchReader = {
 
     val parameters = options.asMap().asScala.toMap
-    validateStreamOptions(parameters)
     val caseInsensitiveParams = parameters.map { case (k, v) => (k.toLowerCase(Locale.ROOT), v) }
+    validateStreamOptions(caseInsensitiveParams)
 
-    val controllerURI = URI.create(caseInsensitiveParams.getOrElse(CONTROLLER, "tcp://localhost:9090"))
-    val scopeName = caseInsensitiveParams.getOrElse(SCOPE, "")
-    val streamName = caseInsensitiveParams.getOrElse(STREAM, "")
-    val encoding = Encoding.withName(caseInsensitiveParams.getOrElse(ENCODING_KEY, Encoding.None.toString))
+    val clientConfig = buildClientConfig(caseInsensitiveParams)
+    val scopeName = caseInsensitiveParams(PravegaSourceProvider.SCOPE_OPTION_KEY)
+    val streamName = caseInsensitiveParams(PravegaSourceProvider.STREAM_OPTION_KEY)
+    val encoding = Encoding.withName(caseInsensitiveParams.getOrElse(PravegaSourceProvider.ENCODING_OPTION_KEY, Encoding.None.toString))
 
-    log.info(s"createMicroBatchReader: controllerURI=${controllerURI}, scopeName=${scopeName}, streamName=${streamName}, encoding=${encoding}")
+    val startStreamCut = PravegaSourceProvider.getPravegaStreamCut(
+      caseInsensitiveParams, PravegaSourceProvider.START_STREAM_CUT_OPTION_KEY, LatestStreamCut)
 
-    val clientConfig = ClientConfig.builder()
-      .controllerURI(controllerURI)
-      .build()
-    createStream(scopeName, streamName, clientConfig)
+    val endStreamCut = PravegaSourceProvider.getPravegaStreamCut(
+      caseInsensitiveParams, PravegaSourceProvider.END_STREAM_CUT_OPTION_KEY, UnboundedStreamCut)
+
+    log.info(s"createMicroBatchReader: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}, encoding=${encoding}"
+      + s" startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}")
+
+    createStreams(caseInsensitiveParams)
+
     new PravegaMicroBatchReader(
       scopeName,
       streamName,
       clientConfig,
       encoding,
-      options)
+      options,
+      startStreamCut,
+      endStreamCut)
   }
 
   /**
     * Returns a new base relation with the given parameters.
+    *
+    * Unbounded stream cuts are bound only once. Late binding is not available.
     *
     * @note The parameters' keywords are case insensitive and this insensitivity is enforced
     *       by the Map that is passed to the function.
@@ -88,20 +93,26 @@ class PravegaSourceProvider extends DataSourceV2
                                parameters: Map[String, String]): BaseRelation = {
 
     log.info(s"createRelation: parameters=${parameters}")
-    validateBatchOptions(parameters)
     val caseInsensitiveParams = parameters.map { case (k, v) => (k.toLowerCase(Locale.ROOT), v) }
+    validateBatchOptions(caseInsensitiveParams)
 
-    val controllerURI = URI.create(caseInsensitiveParams.getOrElse(CONTROLLER, "tcp://localhost:9090"))
-    val scopeName = caseInsensitiveParams.getOrElse(SCOPE, "")
-    val streamName = caseInsensitiveParams.getOrElse(STREAM, "")
-    val encoding = Encoding.withName(caseInsensitiveParams.getOrElse(ENCODING_KEY, Encoding.None.toString))
+    val clientConfig = buildClientConfig(caseInsensitiveParams)
+    val scopeName = caseInsensitiveParams(PravegaSourceProvider.SCOPE_OPTION_KEY)
+    val streamName = caseInsensitiveParams(PravegaSourceProvider.STREAM_OPTION_KEY)
+    val encoding = Encoding.withName(caseInsensitiveParams.getOrElse(PravegaSourceProvider.ENCODING_OPTION_KEY, Encoding.None.toString))
 
-    log.info(s"createRelation: controllerURI=${controllerURI}, scopeName=${scopeName}, streamName=${streamName}, encoding=${encoding}")
+    val startStreamCut = PravegaSourceProvider.getPravegaStreamCut(
+      caseInsensitiveParams, PravegaSourceProvider.START_STREAM_CUT_OPTION_KEY, EarliestStreamCut)
+    assert(startStreamCut != LatestStreamCut)
 
-    val clientConfig = ClientConfig.builder()
-      .controllerURI(controllerURI)
-      .build()
-    createStream(scopeName, streamName, clientConfig)
+    val endStreamCut = PravegaSourceProvider.getPravegaStreamCut(
+      caseInsensitiveParams, PravegaSourceProvider.END_STREAM_CUT_OPTION_KEY, LatestStreamCut)
+    assert(endStreamCut != EarliestStreamCut)
+
+    log.info(s"createRelation: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}, encoding=${encoding}"
+      + s" startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}")
+
+    createStreams(caseInsensitiveParams)
 
     new PravegaRelation(
       sqlContext,
@@ -109,7 +120,9 @@ class PravegaSourceProvider extends DataSourceV2
       scopeName,
       streamName,
       clientConfig,
-      encoding)
+      encoding,
+      startStreamCut,
+      endStreamCut)
   }
 
   /**
@@ -132,47 +145,123 @@ class PravegaSourceProvider extends DataSourceV2
                                    options: DataSourceOptions): StreamWriter = {
 
     val parameters = options.asMap().asScala.toMap
-    validateStreamOptions(parameters)
     val caseInsensitiveParams = parameters.map { case (k, v) => (k.toLowerCase(Locale.ROOT), v) }
+    validateStreamOptions(caseInsensitiveParams)
 
-    val controllerURI = URI.create(caseInsensitiveParams.getOrElse(CONTROLLER, DEFAULT_CONTROLLER))
-    val scopeName = caseInsensitiveParams.getOrElse(SCOPE, "")
-    val streamName = caseInsensitiveParams.getOrElse(STREAM, "")
-    val transactionTimeoutTime = caseInsensitiveParams.get(TRANSACTION_TIMEOUT_MS) match {
+    val clientConfig = buildClientConfig(caseInsensitiveParams)
+    val scopeName = caseInsensitiveParams(PravegaSourceProvider.SCOPE_OPTION_KEY)
+    val streamName = caseInsensitiveParams(PravegaSourceProvider.STREAM_OPTION_KEY)
+    val transactionTimeoutTime = caseInsensitiveParams.get(PravegaSourceProvider.TRANSACTION_TIMEOUT_MS_OPTION_KEY) match {
       case Some(s: String) => s.toLong
       case None => DEFAULT_TRANSACTION_TIMEOUT_MS
     }
 
-    log.info(s"createStreamWriter: controllerURI=${controllerURI}, scopeName=${scopeName}, streamName=${streamName}, transactionTimeoutTime=${transactionTimeoutTime}")
+    log.info(s"createStreamWriter: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}, transactionTimeoutTime=${transactionTimeoutTime}")
 
-    val clientConfig = ClientConfig.builder()
-      .controllerURI(controllerURI)
-      .build()
-    createStream(scopeName, streamName, clientConfig)
+    createStreams(caseInsensitiveParams)
 
     new PravegaStreamWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
   }
 
   private def validateStreamOptions(caseInsensitiveParams: Map[String, String]): Unit = {
     // TODO: validate options
+    validateGeneralOptions(caseInsensitiveParams)
   }
 
   private def validateBatchOptions(caseInsensitiveParams: Map[String, String]): Unit = {
     // TODO: validate options
+    validateGeneralOptions(caseInsensitiveParams)
   }
 
-  private def createStream(scopeName: String, streamName: String, clientConfig: ClientConfig): Unit = {
+  private def validateGeneralOptions(caseInsensitiveParams: Map[String, String]): Unit = {
+    if (caseInsensitiveParams.getOrElse(PravegaSourceProvider.SCOPE_OPTION_KEY, "").isEmpty) {
+      throw new IllegalArgumentException(s"Missing required option '${PravegaSourceProvider.SCOPE_OPTION_KEY}'")
+    }
+    if (caseInsensitiveParams.getOrElse(PravegaSourceProvider.STREAM_OPTION_KEY, "").isEmpty) {
+      throw new IllegalArgumentException(s"Missing required option '${PravegaSourceProvider.STREAM_OPTION_KEY}'")
+    }
+  }
+
+  private def buildClientConfig(caseInsensitiveParams: Map[String, String]): ClientConfig = {
+    val controllerURI = URI.create(caseInsensitiveParams.getOrElse(PravegaSourceProvider.CONTROLLER_OPTION_KEY, DEFAULT_CONTROLLER))
+    ClientConfig.builder()
+      .controllerURI(controllerURI)
+      .build()
+  }
+
+  private def createStreams(caseInsensitiveParams: Map[String, String]): Unit = {
+    val clientConfig = buildClientConfig(caseInsensitiveParams)
     val streamManager = StreamManager.create(clientConfig)
     try {
-      streamManager.createScope(scopeName)
-      streamManager.createStream(scopeName, streamName,
-        StreamConfiguration.builder
+      val allowCreateScope = caseInsensitiveParams.getOrElse(PravegaSourceProvider.ALLOW_CREATE_SCOPE_OPTION_KEY, "true").toBoolean
+      val scopeName = caseInsensitiveParams(PravegaSourceProvider.SCOPE_OPTION_KEY)
+      if (allowCreateScope) streamManager.createScope(scopeName)
+
+      val streamName = caseInsensitiveParams(PravegaSourceProvider.STREAM_OPTION_KEY)
+      val allowCreateStream = caseInsensitiveParams.getOrElse(PravegaSourceProvider.ALLOW_CREATE_STREAM_OPTION_KEY, "true").toBoolean
+      if (allowCreateStream) {
+        var streamConfig = StreamConfiguration.builder
           .scope(scopeName)
           .streamName(streamName)
-          // TODO: set scaling policy
-          .build())
+        streamConfig = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_NUM_SEGMENTS_OPTION_KEY) match {
+          case Some(n) => streamConfig.scalingPolicy(ScalingPolicy.fixed(n.toInt))
+          case None => streamConfig
+        }
+        streamManager.createStream(scopeName, streamName, streamConfig.build())
+      }
     } finally {
       streamManager.close()
     }
   }
+}
+
+object PravegaSourceProvider extends Logging {
+  private[spark] val SOURCE_PROVIDER_NAME = "pravega"
+  private[spark] val CONTROLLER_OPTION_KEY = "controller"
+  private[spark] val SCOPE_OPTION_KEY = "scope"
+  private[spark] val STREAM_OPTION_KEY = "stream"
+  private[spark] val TRANSACTION_TIMEOUT_MS_OPTION_KEY = "transaction_timeout_ms"
+  private[spark] val ENCODING_OPTION_KEY = "encoding"
+  private[spark] val START_STREAM_CUT_OPTION_KEY = "start_stream_cut"
+  private[spark] val END_STREAM_CUT_OPTION_KEY = "end_stream_cut"
+  private[spark] val ALLOW_CREATE_SCOPE_OPTION_KEY = "allow_create_scope"
+  private[spark] val ALLOW_CREATE_STREAM_OPTION_KEY = "allow_create_stream"
+  private[spark] val DEFAULT_NUM_SEGMENTS_OPTION_KEY = "default_num_segments"
+  private[spark] val STREAM_CUT_EARLIEST = "earliest"
+  private[spark] val STREAM_CUT_LATEST = "latest"
+  private[spark] val STREAM_CUT_UNBOUNDED = "unbounded"
+  private[spark] val ROUTING_KEY_ATTRIBUTE_NAME = "routing_key"
+  private[spark] val EVENT_ATTRIBUTE_NAME = "event"
+
+  def getPravegaStreamCut(
+                                     params: Map[String, String],
+                                     streamCutOptionKey: String,
+                                     defaultStreamCut: PravegaStreamCut): PravegaStreamCut = {
+    params.get(streamCutOptionKey).map(_.trim) match {
+      case Some(offset) if offset.toLowerCase(Locale.ROOT) == STREAM_CUT_LATEST =>
+        LatestStreamCut
+      case Some(offset) if offset.toLowerCase(Locale.ROOT) == STREAM_CUT_EARLIEST =>
+        EarliestStreamCut
+      case Some(offset) if offset.toLowerCase(Locale.ROOT) == STREAM_CUT_UNBOUNDED =>
+        UnboundedStreamCut
+      case Some(base64String) => SpecificStreamCut(StreamCut.from(base64String))
+      case None => defaultStreamCut
+    }
+  }
+}
+
+object PravegaReader {
+  private[spark] val EVENT_FIELD_NAME = "event"
+  private[spark] val SCOPE_FIELD_NAME = "scope"
+  private[spark] val STREAM_FIELD_NAME = "stream"
+  private[spark] val SEGMENT_ID_FIELD_NAME = "segment_id"
+  private[spark] val OFFSET_FIELD_NAME = "offset"
+
+  def pravegaSchema: StructType = StructType(Seq(
+    StructField(EVENT_FIELD_NAME, BinaryType),
+    StructField(SCOPE_FIELD_NAME, StringType),
+    StructField(STREAM_FIELD_NAME, StringType),
+    StructField(SEGMENT_ID_FIELD_NAME, LongType),
+    StructField(OFFSET_FIELD_NAME, LongType)
+  ))
 }
