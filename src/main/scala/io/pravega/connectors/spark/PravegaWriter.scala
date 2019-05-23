@@ -33,14 +33,23 @@ case class PravegaWriterCommitMessage(transactionId: UUID) extends WriterCommitM
   * It uses Pravega transactions to support exactly-once semantics.
   * Used by both streaming and batch jobs.
   *
-  * @param transactionTimeoutTime   The number of milliseconds for transactions to timeout.
-  * @param schema                   The schema of the input data.
+  * @param transactionTimeoutMs            The number of milliseconds for transactions to timeout.
+  * @param readAfterWriteConsistency       If true, commit() does not return until the events are
+  *                                        visible to readers. If false, commit() returns as soon as
+  *                                        transactions enter the committing phase and events may
+  *                                        not be immediately visible to readers.
+  * @param transactionStatusPollIntervalMs If readAfterWriteConsistency is true, the transaction will be polled
+  *                                        with this interval of milliseconds.
+  * @param schema                          The schema of the input data.
+  *
   */
 class PravegaWriter(
                      scopeName: String,
                      streamName: String,
                      clientConfig: ClientConfig,
-                     transactionTimeoutTime: Long,
+                     transactionTimeoutMs: Long,
+                     readAfterWriteConsistency: Boolean,
+                     transactionStatusPollIntervalMs: Long,
                      schema: StructType)
   extends DataSourceWriter with StreamWriter with Logging {
 
@@ -53,12 +62,32 @@ class PravegaWriter(
       streamName,
       new ByteBufferSerializer,
       EventWriterConfig.builder
-        .transactionTimeoutTime(transactionTimeoutTime)
+        .transactionTimeoutTime(transactionTimeoutMs)
         .build)
   }
 
   override def createWriterFactory(): PravegaWriterFactory =
-    PravegaWriterFactory(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
+    PravegaWriterFactory(scopeName, streamName, clientConfig, transactionTimeoutMs, schema)
+
+  /**
+    * To allow allows read-after-write consistency, we want to wait until the transaction transitions to COMMITTED
+    * which indicates that readers can view the events.
+    */
+  private def waitForCommittedTransaction(transaction: Transaction[ByteBuffer]): Unit = {
+    if (readAfterWriteConsistency) {
+      var status: Transaction.Status = transaction.checkStatus
+      while (status == Transaction.Status.COMMITTING) {
+        Thread.sleep(transactionStatusPollIntervalMs)
+        status = transaction.checkStatus
+      }
+      if (status != Transaction.Status.COMMITTED) {
+        // This should never happen.
+        log.error(s"waitForCommittedTransaction: Transaction ${transaction.getTxnId} changed from COMMITTING to ${status}")
+        throw new TxnFailedException()
+      }
+      log.info(s"waitForCommittedTransaction: transaction=${transaction.getTxnId}, committed")
+    }
+  }
 
   override def commit(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {
     for {
@@ -72,16 +101,10 @@ class PravegaWriter(
         .par
         .foreach { transactionId =>
           val transaction = writer.getTxn(transactionId)
-          val status = transaction.checkStatus
-          if (status == Transaction.Status.COMMITTED || status == Transaction.Status.COMMITTING) {
-            log.info(s"commit: transaction=${transactionId}, already committed")
-          } else if (status == Transaction.Status.OPEN) {
-            log.info(s"commit: transaction=${transactionId}, committing")
-            transaction.commit()
-          } else {
-            // ABORTED or ABORTING
-            throw new TxnFailedException()
-          }
+          log.info(s"commit: transaction=${transactionId}, calling commit")
+          transaction.commit()
+          log.info(s"commit: transaction=${transactionId}, committing")
+          waitForCommittedTransaction(transaction)
         }
     }
   }
@@ -98,10 +121,12 @@ class PravegaWriter(
         .par
         .foreach { transactionId =>
           val transaction = writer.getTxn(transactionId)
-          val status = transaction.checkStatus
-          if (status == Transaction.Status.OPEN) {
-            log.info(s"abort: transaction=${transactionId}, aborting")
+          log.info(s"abort: transaction=${transactionId}, aborting")
+          try {
             transaction.abort()
+          } catch {
+            // Ignore any errors.
+            case _: Throwable =>
           }
         }
     }

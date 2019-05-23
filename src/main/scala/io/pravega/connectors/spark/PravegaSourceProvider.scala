@@ -45,6 +45,7 @@ class PravegaSourceProvider extends DataSourceV2
   private val DEFAULT_CONTROLLER = "tcp://localhost:9090"
   private val DEFAULT_TRANSACTION_TIMEOUT_MS: Long = 30*1000
   private val DEFAULT_BATCH_TRANSACTION_TIMEOUT_MS: Long = 2*60*1000   // 2 minutes (maximum allowed by default server)
+  private val DEFAULT_TRANSACTION_STATUS_POLL_INTERVAL_MS: Long = 50
 
   /** String that represents the format that this data source provider uses. */
   override def shortName(): String = PravegaSourceProvider.SOURCE_PROVIDER_NAME
@@ -175,16 +176,28 @@ class PravegaSourceProvider extends DataSourceV2
     val clientConfig = buildClientConfig(caseInsensitiveParams)
     val scopeName = caseInsensitiveParams(PravegaSourceProvider.SCOPE_OPTION_KEY)
     val streamName = caseInsensitiveParams(PravegaSourceProvider.STREAM_OPTION_KEY)
-    val transactionTimeoutTime = caseInsensitiveParams.get(PravegaSourceProvider.TRANSACTION_TIMEOUT_MS_OPTION_KEY) match {
+    val transactionTimeoutMs = caseInsensitiveParams.get(PravegaSourceProvider.TRANSACTION_TIMEOUT_MS_OPTION_KEY) match {
       case Some(s: String) => s.toLong
       case None => DEFAULT_TRANSACTION_TIMEOUT_MS
     }
+    val readAfterWriteConsistency = caseInsensitiveParams.getOrElse(PravegaSourceProvider.READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY, "true").toBoolean
+    val transactionStatusPollIntervalMs = caseInsensitiveParams.get(PravegaSourceProvider.TRANSACTION_STATUS_POLL_INTERVAL_MS_OPTION_KEY) match {
+      case Some(s: String) => s.toLong
+      case None => DEFAULT_TRANSACTION_STATUS_POLL_INTERVAL_MS
+    }
 
-    log.info(s"createStreamWriter: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}, transactionTimeoutTime=${transactionTimeoutTime}")
+    log.info(s"createStreamWriter: parameters=${parameters}, clientConfig=${clientConfig}")
 
     createStreams(caseInsensitiveParams)
 
-    new PravegaWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
+    new PravegaWriter(
+      scopeName,
+      streamName,
+      clientConfig,
+      transactionTimeoutMs,
+      readAfterWriteConsistency,
+      transactionStatusPollIntervalMs,
+      schema)
   }
 
   /**
@@ -227,16 +240,28 @@ class PravegaSourceProvider extends DataSourceV2
     val clientConfig = buildClientConfig(caseInsensitiveParams)
     val scopeName = caseInsensitiveParams(PravegaSourceProvider.SCOPE_OPTION_KEY)
     val streamName = caseInsensitiveParams(PravegaSourceProvider.STREAM_OPTION_KEY)
-    val transactionTimeoutTime = caseInsensitiveParams.get(PravegaSourceProvider.TRANSACTION_TIMEOUT_MS_OPTION_KEY) match {
+    val transactionTimeoutMs = caseInsensitiveParams.get(PravegaSourceProvider.TRANSACTION_TIMEOUT_MS_OPTION_KEY) match {
       case Some(s: String) => s.toLong
       case None => DEFAULT_BATCH_TRANSACTION_TIMEOUT_MS
     }
+    val readAfterWriteConsistency = caseInsensitiveParams.getOrElse(PravegaSourceProvider.READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY, "true").toBoolean
+    val transactionStatusPollIntervalMs = caseInsensitiveParams.get(PravegaSourceProvider.TRANSACTION_STATUS_POLL_INTERVAL_MS_OPTION_KEY) match {
+      case Some(s: String) => s.toLong
+      case None => DEFAULT_TRANSACTION_STATUS_POLL_INTERVAL_MS
+    }
 
-    log.info(s"createWriter: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}, transactionTimeoutTime=${transactionTimeoutTime}")
+    log.info(s"createWriter: parameters=${parameters}, clientConfig=${clientConfig}")
 
     createStreams(caseInsensitiveParams)
 
-    Optional.of(new PravegaWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema))
+    Optional.of(new PravegaWriter(
+      scopeName,
+      streamName,
+      clientConfig,
+      transactionTimeoutMs,
+      readAfterWriteConsistency,
+      transactionStatusPollIntervalMs,
+      schema))
   }
 
   private def validateStreamOptions(caseInsensitiveParams: Map[String, String]): Unit = {
@@ -300,6 +325,9 @@ object PravegaSourceProvider extends Logging {
   private[spark] val ALLOW_CREATE_SCOPE_OPTION_KEY = "allow_create_scope"
   private[spark] val ALLOW_CREATE_STREAM_OPTION_KEY = "allow_create_stream"
   private[spark] val DEFAULT_NUM_SEGMENTS_OPTION_KEY = "default_num_segments"
+  private[spark] val READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY = "read_after_write_consistency"
+  private[spark] val TRANSACTION_STATUS_POLL_INTERVAL_MS_OPTION_KEY = "transaction_status_poll_interval_ms"
+
   private[spark] val STREAM_CUT_EARLIEST = "earliest"
   private[spark] val STREAM_CUT_LATEST = "latest"
   private[spark] val STREAM_CUT_UNBOUNDED = "unbounded"
@@ -307,9 +335,10 @@ object PravegaSourceProvider extends Logging {
   private[spark] val EVENT_ATTRIBUTE_NAME = "event"
 
   def getPravegaStreamCut(
-                                     params: Map[String, String],
-                                     streamCutOptionKey: String,
-                                     defaultStreamCut: PravegaStreamCut): PravegaStreamCut = {
+                           params: Map[String, String],
+                           streamCutOptionKey: String,
+                           defaultStreamCut: PravegaStreamCut): PravegaStreamCut = {
+
     params.get(streamCutOptionKey).map(_.trim) match {
       case Some(offset) if offset.toLowerCase(Locale.ROOT) == STREAM_CUT_LATEST =>
         LatestStreamCut
