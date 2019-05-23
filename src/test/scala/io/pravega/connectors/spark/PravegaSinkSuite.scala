@@ -322,7 +322,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
     assert(PravegaTestUtils.exceptionString(ex).toLowerCase(Locale.ROOT).contains("scope does not exist"))
   }
 
-  // This test takes 1.5 minutes because it must wait for a timeout.
+  // This test takes 3 minutes because it must wait for a timeout.
   ignore("streaming - write to non-existing stream") {
     val input = MemoryStream[String]
     val streamName = newStreamName()
