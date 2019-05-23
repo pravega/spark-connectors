@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import io.pravega.connectors.spark.PravegaReader._
 import io.pravega.connectors.spark.PravegaSourceProvider._
+import org.apache.spark.SparkException
 import org.apache.spark.sql._
 import org.apache.spark.sql.execution.streaming.MemoryStream
 import org.apache.spark.sql.functions._
@@ -117,6 +118,43 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       .option(STREAM_OPTION_KEY, streamName)
       .save()
   }
+
+  test("batch - abort transaction") {
+    // Based on org/apache/spark/sql/sources/v2/DataSourceV2Suite.scala.
+    // This input data will fail to read part way in the 2nd partition.
+    val streamName = newStreamName()
+    val failingUdf = org.apache.spark.sql.functions.udf {
+      var count = 0
+      (id: Long, part: Long) => {
+        if (part == 1 && count > 5) {
+          System.out.println(s"failingUdf: throw exception at id=$id, part=$part")
+          // Sleep to hopefully allow partition 0 to call flush on the Pravega transaction.
+          Thread.sleep(1000)
+          throw new RuntimeException("testing error")
+        }
+        count += 1
+        id
+      }
+    }
+    val input = spark
+      .range(100)
+      .selectExpr("id", "spark_partition_id() as part")
+      .select(failingUdf('id, 'part).as('x))
+      .selectExpr("CAST(x as STRING) event")
+    val ex = intercept[SparkException] {
+      input.write
+        .format(SOURCE_PROVIDER_NAME)
+        .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+        .option(SCOPE_OPTION_KEY, testUtils.scope)
+        .option(STREAM_OPTION_KEY, streamName)
+        .save()
+      checkAnswer(createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"), Nil)
+    }
+    // make sure we don't have partial data.
+    checkAnswer(createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"), Nil)
+    assert(ex.getMessage.contains("Writing job failed"))
+}
+
 
   test("streaming - write to Pravega without routing key") {
     val input = MemoryStream[String]

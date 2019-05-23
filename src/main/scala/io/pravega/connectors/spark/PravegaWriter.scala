@@ -90,6 +90,7 @@ class PravegaWriter(
   }
 
   override def commit(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {
+    log.debug(s"commit: BEGIN: epochId=$epochId, messages=${messages.mkString(",")}")
     for {
       clientFactory <- managed(createClientFactory())
       writer <- managed(createWriter(clientFactory))
@@ -107,12 +108,15 @@ class PravegaWriter(
           waitForCommittedTransaction(transaction)
         }
     }
+    log.debug(s"commit: END: epochId=$epochId, messages=${messages.mkString(",")}")
   }
 
   override def abort(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {
+    log.debug(s"abort: BEGIN: epochId=$epochId, messages=${messages.mkString(",")}")
     for {
       clientFactory <- managed(createClientFactory)
       writer <- managed(createWriter(clientFactory))
+      // TODO: An exception is thrown by the Pravega 0.4.0 client here for an unknown reason. The transaction will still abort when it times out.
     } {
       messages
         .map(_.asInstanceOf[PravegaWriterCommitMessage])
@@ -120,16 +124,18 @@ class PravegaWriter(
         .filter(_ != null)
         .par
         .foreach { transactionId =>
-          val transaction = writer.getTxn(transactionId)
           log.info(s"abort: transaction=${transactionId}, aborting")
+          val transaction = writer.getTxn(transactionId)
           try {
             transaction.abort()
           } catch {
-            // Ignore any errors.
-            case _: Throwable =>
+            case ex: Throwable =>
+              // Log but ignore any errors.
+              log.info("abort: Ignoring exception during abort()", ex)
           }
         }
     }
+    log.debug(s"abort: END: epochId=$epochId, messages=${messages.mkString(",")}")
   }
 
   // Used for batch writer.
@@ -201,7 +207,7 @@ class PravegaDataWriter(
 
     if (transaction == null) {
       transaction = writer.beginTxn()
-      log.info(s"write: began transaction ${transaction.getTxnId}")
+      log.info(s"write: transaction=${transaction.getTxnId}, begin")
     }
 
     val haveRoutingKey = !projectedRow.isNullAt(0)
@@ -219,8 +225,9 @@ class PravegaDataWriter(
     if (transaction == null) {
       PravegaWriterCommitMessage(null)
     } else {
-      log.info(s"commit: transaction=${transaction.getTxnId}")
+      log.info(s"commit: transaction=${transaction.getTxnId}, flushing")
       transaction.flush()
+      log.debug(s"commit: transaction=${transaction.getTxnId}, flushed, sending transaction ID to driver for commit")
       val transactionId = transaction.getTxnId
       transaction = null
       PravegaWriterCommitMessage(transactionId)
@@ -229,14 +236,18 @@ class PravegaDataWriter(
 
   def abort(): Unit = {
     if (transaction != null) {
+      log.info(s"abort: transaction=${transaction.getTxnId}, aborting")
       transaction.abort()
+      log.debug(s"abort: transaction=${transaction.getTxnId}, aborted")
       transaction = null
     }
   }
 
   def close(): Unit = {
     if (transaction != null) {
+      log.info(s"close: transaction=${transaction.getTxnId}, aborting")
       transaction.abort()
+      log.debug(s"close: transaction=${transaction.getTxnId}, aborted")
       transaction = null
     }
     if (writer != null) {
