@@ -24,6 +24,7 @@ import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
 import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{SQLContext, SaveMode}
+import resource.managed
 
 import scala.collection.JavaConverters._
 
@@ -266,8 +267,7 @@ class PravegaSourceProvider extends DataSourceV2
 
   private def createStreams(caseInsensitiveParams: Map[String, String]): Unit = {
     val clientConfig = buildClientConfig(caseInsensitiveParams)
-    val streamManager = StreamManager.create(clientConfig)
-    try {
+    for (streamManager <- managed(StreamManager.create(clientConfig))) {
       val allowCreateScope = caseInsensitiveParams.getOrElse(PravegaSourceProvider.ALLOW_CREATE_SCOPE_OPTION_KEY, "true").toBoolean
       val scopeName = caseInsensitiveParams(PravegaSourceProvider.SCOPE_OPTION_KEY)
       if (allowCreateScope) streamManager.createScope(scopeName)
@@ -284,8 +284,6 @@ class PravegaSourceProvider extends DataSourceV2
         }
         streamManager.createStream(scopeName, streamName, streamConfig.build())
       }
-    } finally {
-      streamManager.close()
     }
   }
 }

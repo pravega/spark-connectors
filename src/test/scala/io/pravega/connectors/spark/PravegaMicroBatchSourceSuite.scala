@@ -115,7 +115,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
 
   import testImplicits._
 
-  test("cannot stop Pravega stream") {
+  test("stop stream before reading anything") {
     val streamName = newStreamName()
     testUtils.createTestStream(streamName, numSegments = 5)
     testUtils.sendMessages(streamName, (101 to 105).map { _.toString }.toArray)

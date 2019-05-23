@@ -12,18 +12,15 @@ package io.pravega.connectors.spark
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
-import org.apache.spark.SparkException
+import io.pravega.connectors.spark.PravegaReader._
+import io.pravega.connectors.spark.PravegaSourceProvider._
 import org.apache.spark.sql._
-import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SpecificInternalRow, UnsafeProjection}
 import org.apache.spark.sql.execution.streaming.MemoryStream
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.streaming._
 import org.apache.spark.sql.test.SharedSQLContext
-import org.apache.spark.sql.types.{BinaryType, DataType}
-import org.scalatest.time.SpanSugar._
-import io.pravega.connectors.spark.PravegaSourceProvider._
-import io.pravega.connectors.spark.PravegaReader._
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
+import org.scalatest.time.SpanSugar._
 
 class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest {
   import testImplicits._
