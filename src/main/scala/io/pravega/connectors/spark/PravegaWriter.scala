@@ -53,7 +53,7 @@ class PravegaWriter(
                      schema: StructType)
   extends DataSourceWriter with StreamWriter with Logging {
 
-  private def createClientFactory(): ClientFactory = {
+  private def createClientFactory: ClientFactory = {
     ClientFactory.withScope(scopeName, clientConfig)
   }
 
@@ -92,7 +92,7 @@ class PravegaWriter(
   override def commit(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {
     log.debug(s"commit: BEGIN: epochId=$epochId, messages=${messages.mkString(",")}")
     for {
-      clientFactory <- managed(createClientFactory())
+      clientFactory <- managed(createClientFactory)
       writer <- managed(createWriter(clientFactory))
     } {
       messages
@@ -183,10 +183,10 @@ class PravegaDataWriter(
                                inputSchema: StructType)
   extends DataWriter[InternalRow] with Logging {
 
-  protected val projection = createProjection
+  private val projection = createProjection
 
-  private lazy val clientFactory = ClientFactory.withScope(scopeName, clientConfig)
-  private lazy val writer: EventStreamWriter[ByteBuffer] = clientFactory.createEventWriter(
+  private val clientFactory = ClientFactory.withScope(scopeName, clientConfig)
+  private val writer: EventStreamWriter[ByteBuffer] = clientFactory.createEventWriter(
     streamName,
     new ByteBufferSerializer,
     EventWriterConfig
@@ -194,9 +194,9 @@ class PravegaDataWriter(
       .transactionTimeoutTime(transactionTimeoutTime)
       .build)
 
-  private var transaction: Transaction[ByteBuffer] = null
+  private var transaction: Transaction[ByteBuffer] = _
 
-  def write(row: InternalRow): Unit = {
+  override def write(row: InternalRow): Unit = {
     val projectedRow = projection(row)
     val event = projectedRow.getBinary(1)
     val eventToLog = if (log.isDebugEnabled) {
@@ -221,41 +221,49 @@ class PravegaDataWriter(
     }
   }
 
-  def commit(): WriterCommitMessage = {
-    if (transaction == null) {
-      PravegaWriterCommitMessage(null)
-    } else {
-      log.info(s"commit: transaction=${transaction.getTxnId}, flushing")
-      transaction.flush()
-      log.debug(s"commit: transaction=${transaction.getTxnId}, flushed, sending transaction ID to driver for commit")
-      val transactionId = transaction.getTxnId
-      transaction = null
-      PravegaWriterCommitMessage(transactionId)
+  override def commit(): WriterCommitMessage = {
+    try {
+      if (transaction == null) {
+        PravegaWriterCommitMessage(null)
+      } else {
+        log.info(s"commit: transaction=${transaction.getTxnId}, flushing")
+        transaction.flush()
+        log.debug(s"commit: transaction=${transaction.getTxnId}, flushed, sending transaction ID to driver for commit")
+        val transactionId = transaction.getTxnId
+        transaction = null
+        PravegaWriterCommitMessage(transactionId)
+      }
+    } finally {
+      close()
     }
   }
 
-  def abort(): Unit = {
-    if (transaction != null) {
-      log.info(s"abort: transaction=${transaction.getTxnId}, aborting")
-      transaction.abort()
-      log.debug(s"abort: transaction=${transaction.getTxnId}, aborted")
-      transaction = null
+  override def abort(): Unit = {
+    try {
+      if (transaction != null) {
+        log.info(s"abort: transaction=${transaction.getTxnId}, aborting")
+        transaction.abort()
+        log.debug(s"abort: transaction=${transaction.getTxnId}, aborted")
+        transaction = null
+      }
+    } finally {
+      close()
     }
   }
 
-  def close(): Unit = {
-    if (transaction != null) {
-      log.info(s"close: transaction=${transaction.getTxnId}, aborting")
-      transaction.abort()
-      log.debug(s"close: transaction=${transaction.getTxnId}, aborted")
-      transaction = null
-    }
-    if (writer != null) {
+  private def close(): Unit = {
+    log.debug("close: BEGIN")
+    try {
       writer.close()
+    } catch {
+      case e: Throwable => log.warn("close: exception during writer close", e)
     }
-    if (clientFactory != null) {
+    try {
       clientFactory.close()
+    } catch {
+      case e: Throwable => log.warn("close: exception during client factory close", e)
     }
+    log.debug("close: END")
   }
 
   private def createProjection = {
