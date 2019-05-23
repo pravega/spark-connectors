@@ -422,7 +422,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
     var stream: DataStreamWriter[Row] = null
     withTempDir { checkpointDir =>
       var df = input.toDF()
-      if (withSelectExpr.length > 0) {
+      if (withSelectExpr.nonEmpty) {
         df = df.selectExpr(withSelectExpr: _*)
       }
       stream = df.writeStream
