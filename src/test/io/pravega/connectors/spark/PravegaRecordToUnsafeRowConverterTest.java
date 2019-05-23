@@ -1,35 +1,36 @@
 package io.pravega.connectors.spark;
 
+import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowWriter;
 import org.apache.spark.unsafe.types.UTF8String;
+
 import org.junit.Assert;
 import org.junit.Test;
 
-
 /**
- * To check if the Pravega Events to UnsafeRow works correctly
+ *Unit Test for {@link PravegaRecordToUnsafeRowConverter}
  */
 public class PravegaRecordToUnsafeRowConverterTest {
 
-    UnsafeRowWriter writer = new UnsafeRowWriter(2);
-
-    private int DEFAULT_CAPACITY = 1 << 16;
+    private PravegaRecordToUnsafeRowConverter pravegaRecordToUnsafeRowConverter=new PravegaRecordToUnsafeRowConverter();
 
     @Test
-    public void toUnsafeRow() {
-
-
-        String  x="Pravega";
-        String  y="Spark";
-
+    public void toUnsafeRowTest(){
+        UnsafeRow x =expected();
+        UnsafeRow y =pravegaRecordToUnsafeRowConverter.toUnsafeRow("event".getBytes(),"scope","stream",1L,2L);
+        Assert.assertEquals("Both return the same value",x,y);
+    }
+    /**
+     * Expected UnsafeRow
+     */
+    public UnsafeRow expected(){
+        UnsafeRowWriter writer=new UnsafeRowWriter(5);
         writer.reset();
-        writer.write(0,UTF8String.fromString(x));
-        writer.write(1,UTF8String.fromString(y));
-
-        writer.getRow();
-        Assert.assertNotEquals(2,writer.totalSize());
-        Assert.assertTrue(writer.totalSize()< DEFAULT_CAPACITY);
-        Assert.assertFalse(writer.totalSize()  < 1<<4);
-
+        writer.write(0,"event".getBytes());
+        writer.write(1, UTF8String.fromString("scope"));
+        writer.write(2, UTF8String.fromString("stream"));
+        writer.write(3,1L);
+        writer.write(4,2L);
+        return writer.getRow();
     }
 }
