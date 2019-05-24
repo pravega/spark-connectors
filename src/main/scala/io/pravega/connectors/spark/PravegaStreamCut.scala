@@ -32,11 +32,11 @@ case object LatestStreamCut extends PravegaStreamCut
 /**
  * Represents the desire to bind to the unbounded StreamCut in Pravega.
  * A streaming reader with an unbounded StreamCut will attempt to read forever.
+ * A batch reader will treat this as LatestStreamCut.
  */
 case object UnboundedStreamCut extends PravegaStreamCut
 
 /**
- * Represents the desire to bind to specific StreamCut.
+ * Represents the desire to bind to a specific StreamCut.
  */
-case class SpecificStreamCut(
-    streamCuts: StreamCut) extends PravegaStreamCut
+case class SpecificStreamCut(streamCuts: StreamCut) extends PravegaStreamCut
