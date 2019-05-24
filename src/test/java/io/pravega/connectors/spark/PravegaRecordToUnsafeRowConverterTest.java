@@ -22,7 +22,6 @@ public class PravegaRecordToUnsafeRowConverterTest {
 
         //Case 2
         UnsafeRow y = pravegaRecordToUnsafeRowConverter.toUnsafeRow(("e04fd020ea3a6910a2d808002b30309d").getBytes(), "PravegaScope", "StreamName", 12345678910L, 457865441129309L);
-
         Assert.assertEquals(y.getString(0), "e04fd020ea3a6910a2d808002b30309d");
         Assert.assertEquals(y.getString(1), "PravegaScope");
         Assert.assertEquals(y.getString(2), "StreamName");
@@ -31,13 +30,11 @@ public class PravegaRecordToUnsafeRowConverterTest {
 
         //Case 3
         UnsafeRow z = pravegaRecordToUnsafeRowConverter.toUnsafeRow("".getBytes(), "", "", 0, -1);
-
         Assert.assertEquals(z.getString(0), "");
         Assert.assertEquals(z.getString(1), "");
         Assert.assertEquals(z.getString(2), "");
         Assert.assertEquals(z.getLong(3), 0);
         Assert.assertEquals(z.getLong(4), -1);
-
     }
-
 }
+
