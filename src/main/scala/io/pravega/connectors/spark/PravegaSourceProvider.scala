@@ -17,6 +17,7 @@ import io.pravega.client.admin.StreamManager
 import io.pravega.client.stream.{ScalingPolicy, StreamConfiguration, StreamCut}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.sources.v2._
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader
@@ -24,7 +25,8 @@ import org.apache.spark.sql.sources.v2.reader.streaming.MicroBatchReader
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
 import org.apache.spark.sql.streaming.OutputMode
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.types.{StructField, _}
+import org.apache.spark.unsafe.types.UTF8String
 import resource.managed
 
 import scala.collection.JavaConverters._
@@ -33,6 +35,12 @@ object Encoding extends Enumeration {
   type Encoding = Value
   val None: Value = Value("none")
   val Chunked_v1: Value = Value("chunked_v1")
+}
+
+object MetadataTableName extends Enumeration {
+  type MetadataTableName = Value
+  val StreamInfo: Value = Value("StreamInfo")
+  val Streams: Value = Value("Streams")
 }
 
 class PravegaSourceProvider extends DataSourceV2
@@ -121,11 +129,22 @@ class PravegaSourceProvider extends DataSourceV2
   override def createReader(options: DataSourceOptions): DataSourceReader = {
     val parameters = options.asMap().asScala.toMap
     val caseInsensitiveParams = parameters.map { case (k, v) => (k.toLowerCase(Locale.ROOT), v) }
-    validateBatchOptions(caseInsensitiveParams)
 
+    validateBatchOptions(caseInsensitiveParams)
     val clientConfig = buildClientConfig(caseInsensitiveParams)
     val scopeName = caseInsensitiveParams(PravegaSourceProvider.SCOPE_OPTION_KEY)
     val streamName = caseInsensitiveParams(PravegaSourceProvider.STREAM_OPTION_KEY)
+
+    val metadataTableName = caseInsensitiveParams.get(PravegaSourceProvider.METADATA_OPTION_KEY).map(MetadataTableName.withName)
+    if (metadataTableName.isDefined) {
+      return createMetadataReader(
+        scopeName,
+        streamName,
+        clientConfig,
+        metadataTableName.get,
+        caseInsensitiveParams)
+    }
+
     val encoding = Encoding.withName(caseInsensitiveParams.getOrElse(PravegaSourceProvider.ENCODING_OPTION_KEY, Encoding.None.toString))
 
     val startStreamCut = PravegaSourceProvider.getPravegaStreamCut(
@@ -147,6 +166,34 @@ class PravegaSourceProvider extends DataSourceV2
       options,
       startStreamCut,
       endStreamCut)
+  }
+
+  private def createMetadataReader(scopeName: String,
+                                   streamName: String,
+                                   clientConfig: ClientConfig,
+                                   metadataTableName: MetadataTableName.MetadataTableName,
+                                   caseInsensitiveParams: Map[String, String]): DataSourceReader = {
+    (for (streamManager <- managed(StreamManager.create(clientConfig))) yield {
+      metadataTableName match {
+        case MetadataTableName.StreamInfo => {
+          val streamInfo = streamManager.getStreamInfo(scopeName, streamName)
+          val schema = StructType(Seq(
+            StructField("head_stream_cut", StringType),
+            StructField("tail_stream_cut", StringType)
+          ))
+          val row = new GenericInternalRow(Seq(
+            UTF8String.fromString(streamInfo.getHeadStreamCut.asText()),
+            UTF8String.fromString(streamInfo.getTailStreamCut.asText())
+          ).toArray[Any])
+          MemoryDataSourceReader(schema, Seq(row))
+          }
+        case MetadataTableName.Streams => {
+          throw new NotImplementedError()
+          // TODO: Below disabled because it requires Pravega 0.5+.
+          // val streams = streamManager.listStreams(scopeName)
+        }
+      }
+    }).acquireAndGet(identity)
   }
 
   /**
@@ -327,6 +374,7 @@ object PravegaSourceProvider extends Logging {
   private[spark] val DEFAULT_NUM_SEGMENTS_OPTION_KEY = "default_num_segments"
   private[spark] val READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY = "read_after_write_consistency"
   private[spark] val TRANSACTION_STATUS_POLL_INTERVAL_MS_OPTION_KEY = "transaction_status_poll_interval_ms"
+  private[spark] val METADATA_OPTION_KEY = "metadata"
 
   private[spark] val STREAM_CUT_EARLIEST = "earliest"
   private[spark] val STREAM_CUT_LATEST = "latest"
