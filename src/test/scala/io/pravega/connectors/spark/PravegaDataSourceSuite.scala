@@ -15,7 +15,7 @@ import io.pravega.connectors.spark.PravegaSourceProvider._
 import org.apache.spark.sql.QueryTest
 import org.apache.spark.sql.test.SharedSQLContext
 
-class PravegaRelationSuite extends QueryTest with SharedSQLContext with PravegaTest {
+class PravegaDataSourceSuite extends QueryTest with SharedSQLContext with PravegaTest {
   import testImplicits._
 
   private val streamNumber = new AtomicInteger(0)
@@ -159,11 +159,10 @@ class PravegaRelationSuite extends QueryTest with SharedSQLContext with PravegaT
         START_STREAM_CUT_OPTION_KEY -> STREAM_CUT_EARLIEST,
         END_STREAM_CUT_OPTION_KEY -> tail1))
     checkAnswer(df6, (0 to 20).map(_.toString).toDF)
-
   }
 
   test("reuse same dataframe in query") {
-    // This test ensures that we do not cache the Pravega reader in PravegaRelation
+    // This test ensures that we do not cache the Pravega reader
     val streamName = newStreamName()
     testUtils.createTestStream(streamName, numSegments = 1)
     testUtils.sendMessages(streamName, (0 to 10).map(_.toString).toArray, Some(0))
