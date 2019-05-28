@@ -11,6 +11,7 @@ package io.pravega.connectors.spark
 
 import org.apache.spark.sql.Row
 
+
 /** A simple class for converting Pravega events to UnsafeRow */
 class PravegaRecordToRowConverter {
   def toRow(event: Array[Byte], scope: String, streamName: String, segmentId: Long, offset: Long): Row = {
