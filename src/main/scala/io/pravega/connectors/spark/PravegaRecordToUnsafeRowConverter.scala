@@ -19,6 +19,7 @@ class PravegaRecordToUnsafeRowConverter {
 
   def toUnsafeRow(event: Array[Byte], scope: String, streamName: String, segmentId: Long, offset: Long): UnsafeRow = {
     rowWriter.reset()
+    rowWriter.zeroOutNullBytes()
     rowWriter.write(0, event)
     rowWriter.write(1, UTF8String.fromString(scope))
     rowWriter.write(2, UTF8String.fromString(streamName))
