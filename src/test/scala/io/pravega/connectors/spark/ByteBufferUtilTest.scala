@@ -19,53 +19,47 @@ import org.junit.Test
 class ByteBufferUtilTest {
 
   @Test
-  def concatenateTest(): Unit = {
+  def testArrayOfBytesAsBuffer(): Unit = {
     //Testing using Array of bytes as input
     val buffer1 = ByteBuffer.wrap(Array[Byte](1, 2, 3, 4))
     val buffer2 = ByteBuffer.wrap(Array[Byte](5, 6))
-    val bytebuffer = ByteBufferUtil.concatenate(Seq(buffer1, buffer2))
+    val input = ByteBufferUtil.concatenate(Seq(buffer1, buffer2))
 
-    assertEquals(6, bytebuffer.capacity())
-    assertEquals(3, bytebuffer.get(2))
-    assertEquals(5, bytebuffer.get(4))
-    assertEquals(6, bytebuffer.get(5))
-    bytebuffer.put(0, 11)
-    assertEquals(11, bytebuffer.get(0))
-    assertEquals(6, bytebuffer.limit())
-    assertEquals(6, bytebuffer.remaining())
-    assertEquals(0, bytebuffer.position())
+    assertEquals(3, input.get(2))
+    assertEquals(5, input.get(4))
+    assertEquals(6, input.get(5))
+    assertEquals(6, input.limit())
+    assertEquals(0, input.position())
   }
 
   @Test
-  def concatenateTest2(): Unit = {
+  def testStringBufferAsBuffer(): Unit = {
     //Test with a string buffer as input
     val stringBuf1 = ByteBuffer.wrap("Message".getBytes(StandardCharsets.UTF_8))
-    var stringBuffer = ByteBufferUtil.concatenate(Seq(stringBuf1))
+    var stringInput = ByteBufferUtil.concatenate(Seq(stringBuf1))
 
-    assertEquals(7, stringBuffer.limit())
-    assertEquals(0, stringBuffer.position())
-    assertEquals(7, stringBuffer.capacity())
-    assertEquals(7, stringBuffer.remaining())
+    assertEquals(101, stringInput.get(1))
+    assertEquals(7, stringInput.limit())
+    assertEquals(0, stringInput.position())
+
   }
 
   @Test
-  def concatenateTest3(): Unit = {
+  def testSequenceOfStringsAsBuffer(): Unit = {
     //Test with Seq of 2 string buffers as input
     val stringBuf2 = ByteBuffer.wrap("Welcomes".getBytes(StandardCharsets.UTF_8))
     val stringBuf3 = ByteBuffer.wrap("Pravega".getBytes(StandardCharsets.UTF_8))
-    val stringBuffer = ByteBufferUtil.concatenate(Seq(stringBuf2, stringBuf3))
+    val stringSequenceInput = ByteBufferUtil.concatenate(Seq(stringBuf2, stringBuf3))
 
-    assertEquals(15, stringBuffer.remaining())
-    assertEquals(15, stringBuffer.capacity())
-    assertEquals(0, stringBuffer.position())
-    assertEquals(15, stringBuffer.limit())
-    assertEquals(87, stringBuffer.get(0))
-    assertEquals(101, stringBuffer.get(1))
-    stringBuffer.position(3)
-    assertEquals(99, stringBuffer.get())
-    stringBuffer.position(8)
-    assertEquals(80, stringBuffer.get())
+    assertEquals(15, stringSequenceInput.remaining())
+    assertEquals(0, stringSequenceInput.position())
+    assertEquals(15, stringSequenceInput.limit())
+    assertEquals(87, stringSequenceInput.get(0))
+    assertEquals(101, stringSequenceInput.get(1))
+    stringSequenceInput.position(3)
+    assertEquals(99, stringSequenceInput.get())
+    stringSequenceInput.position(8)
+    assertEquals(80, stringSequenceInput.get())
   }
 
 }
-
