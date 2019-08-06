@@ -49,8 +49,8 @@ that use Pravega as the stream storage and message bus, and Apache Spark for com
   - The initial batch in the micro-batch reader will contain the entire Pravega stream as of the start time.
     There is no rate limiting functionality.
 
-  - Pravega [issue 3463](https://github.com/pravega/pravega/issues/3463) impacts long-running
-    Spark Streaming jobs that write to Pravega.
+  - Read-after-write consistency is currently *not* guaranteed.
+    Be cautious if your workflow requires multiple chained Spark batch jobs.
 
 ### Build and Install the Spark Connector
 
@@ -67,7 +67,7 @@ ls -lhR ~/.m2/repository/io/pravega/pravega-connectors-spark
 ## Documentation
 
 To learn more about how to build and use the Spark Connector library, refer to
-[Pravega Samples](https://github.com/claudiofahey/pravega-samples/tree/spark-connector-examples).
+[Pravega Samples](https://github.com/claudiofahey/pravega-samples/tree/spark-connector-examples/spark-connector-examples).
 
 ## About
 

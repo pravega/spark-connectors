@@ -44,6 +44,4 @@ jobs:
 
 notifications:
   email:
-  - flavio.junqueira@emc.com
-  - incia.anand@emc.com
   - claudio.fahey@dell.com

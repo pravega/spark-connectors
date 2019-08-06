@@ -24,7 +24,6 @@ plugins {
 }
 
 apply plugin: 'eclipse'
-apply plugin: 'checkstyle'
 apply from: 'gradle/java.gradle'
 apply from: "gradle/scala.gradle"
 apply from: 'gradle/maven.gradle'
