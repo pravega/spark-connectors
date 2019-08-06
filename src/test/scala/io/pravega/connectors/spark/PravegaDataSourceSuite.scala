@@ -11,11 +11,12 @@ package io.pravega.connectors.spark
 
 import java.util.concurrent.atomic.AtomicInteger
 
+import io.pravega.client.stream.StreamCut
 import io.pravega.connectors.spark.PravegaSourceProvider._
 import org.apache.spark.sql.QueryTest
 import org.apache.spark.sql.test.SharedSQLContext
 
-class PravegaRelationSuite extends QueryTest with SharedSQLContext with PravegaTest {
+class PravegaDataSourceSuite extends QueryTest with SharedSQLContext with PravegaTest {
   import testImplicits._
 
   private val streamNumber = new AtomicInteger(0)
@@ -159,11 +160,10 @@ class PravegaRelationSuite extends QueryTest with SharedSQLContext with PravegaT
         START_STREAM_CUT_OPTION_KEY -> STREAM_CUT_EARLIEST,
         END_STREAM_CUT_OPTION_KEY -> tail1))
     checkAnswer(df6, (0 to 20).map(_.toString).toDF)
-
   }
 
   test("reuse same dataframe in query") {
-    // This test ensures that we do not cache the Pravega reader in PravegaRelation
+    // This test ensures that we do not cache the Pravega reader
     val streamName = newStreamName()
     testUtils.createTestStream(streamName, numSegments = 1)
     testUtils.sendMessages(streamName, (0 to 10).map(_.toString).toArray, Some(0))
@@ -172,5 +172,33 @@ class PravegaRelationSuite extends QueryTest with SharedSQLContext with PravegaT
     val df = createDF(streamName,
       withOptions = Map("startingOffsets" -> "earliest", "endingOffsets" -> "latest"))
     checkAnswer(df.union(df), ((0 to 10) ++ (0 to 10)).map(_.toString).toDF)
+  }
+
+  test("metadata") {
+    val streamName = newStreamName()
+    val df = Seq("1", "2", "3", "4", "5").toDF(EVENT_ATTRIBUTE_NAME)
+    df.write
+      .format(SOURCE_PROVIDER_NAME)
+      .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+      .option(SCOPE_OPTION_KEY, testUtils.scope)
+      .option(STREAM_OPTION_KEY, streamName)
+      .option(DEFAULT_NUM_SEGMENTS_OPTION_KEY, "5")
+      .save()
+    val streamInfo1 = testUtils.getStreamInfo(streamName)
+
+    val metadf = spark
+      .read
+      .format(SOURCE_PROVIDER_NAME)
+      .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+      .option(SCOPE_OPTION_KEY, testUtils.scope)
+      .option(STREAM_OPTION_KEY, streamName)
+      .option(METADATA_OPTION_KEY, MetadataTableName.StreamInfo.toString)
+      .load()
+    metadf.show(truncate = false)
+    val tailStreamCutText = metadf.select("tail_stream_cut").collect().head.getString(0)
+    log.info(s"tailStreamCutText=$tailStreamCutText")
+    val tailStreamCut = StreamCut.from(tailStreamCutText)
+    log.info(s"tailStreamCut=$tailStreamCut")
+    assert(tailStreamCut == streamInfo1.getTailStreamCut)
   }
 }

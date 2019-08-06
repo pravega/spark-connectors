@@ -16,14 +16,17 @@ import io.pravega.client.ClientConfig
 import io.pravega.client.admin.StreamManager
 import io.pravega.client.stream.{ScalingPolicy, StreamConfiguration, StreamCut}
 import org.apache.spark.internal.Logging
+import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.sources.v2._
+import org.apache.spark.sql.sources.v2.reader.DataSourceReader
 import org.apache.spark.sql.sources.v2.reader.streaming.MicroBatchReader
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
 import org.apache.spark.sql.streaming.OutputMode
-import org.apache.spark.sql.types._
-import org.apache.spark.sql.{SQLContext, SaveMode}
+import org.apache.spark.sql.types.{StructField, _}
+import org.apache.spark.unsafe.types.UTF8String
 import resource.managed
 
 import scala.collection.JavaConverters._
@@ -34,9 +37,15 @@ object Encoding extends Enumeration {
   val Chunked_v1: Value = Value("chunked_v1")
 }
 
+object MetadataTableName extends Enumeration {
+  type MetadataTableName = Value
+  val StreamInfo: Value = Value("StreamInfo")
+  val Streams: Value = Value("Streams")
+}
+
 class PravegaSourceProvider extends DataSourceV2
   with MicroBatchReadSupport
-  with RelationProvider
+  with ReadSupport
   with DataSourceRegister
   with StreamWriteSupport
   with WriteSupport
@@ -103,50 +112,88 @@ class PravegaSourceProvider extends DataSourceV2
   }
 
   /**
-    * Returns a new base relation with the given parameters.
+    * Creates a {@link DataSourceReader} to scan the data from this data source.
+    *
     * This is used to read a Pravega stream as a dataframe in a batch job.
     *
-    * Unbounded stream cuts (earliest, latest, unbounded) are bound only once. 
+    * Unbounded stream cuts (earliest, latest, unbounded) are bound only once.
     * Late binding is not available.
     *
-    * @note The parameters' keywords are case insensitive and this insensitivity is enforced
-    *       by the Map that is passed to the function.
+    * If this method fails (by throwing an exception), the action will fail and no Spark job will be
+    * submitted.
+    *
+    * @param schema  the user specified schema.
+    * @param options the options for the returned data source reader, which is an immutable
+    *                case-insensitive string-to-string map.
     */
-  override def createRelation(
-                               sqlContext: SQLContext,
-                               parameters: Map[String, String]): BaseRelation = {
-
-    log.info(s"createRelation: parameters=${parameters}")
+  override def createReader(options: DataSourceOptions): DataSourceReader = {
+    val parameters = options.asMap().asScala.toMap
     val caseInsensitiveParams = parameters.map { case (k, v) => (k.toLowerCase(Locale.ROOT), v) }
-    validateBatchOptions(caseInsensitiveParams)
 
+    validateBatchOptions(caseInsensitiveParams)
     val clientConfig = buildClientConfig(caseInsensitiveParams)
     val scopeName = caseInsensitiveParams(PravegaSourceProvider.SCOPE_OPTION_KEY)
     val streamName = caseInsensitiveParams(PravegaSourceProvider.STREAM_OPTION_KEY)
+
+    val metadataTableName = caseInsensitiveParams.get(PravegaSourceProvider.METADATA_OPTION_KEY).map(MetadataTableName.withName)
+    if (metadataTableName.isDefined) {
+      return createMetadataReader(
+        scopeName,
+        streamName,
+        clientConfig,
+        metadataTableName.get,
+        caseInsensitiveParams)
+    }
+
     val encoding = Encoding.withName(caseInsensitiveParams.getOrElse(PravegaSourceProvider.ENCODING_OPTION_KEY, Encoding.None.toString))
 
     val startStreamCut = PravegaSourceProvider.getPravegaStreamCut(
       caseInsensitiveParams, PravegaSourceProvider.START_STREAM_CUT_OPTION_KEY, EarliestStreamCut)
-    assert(startStreamCut != LatestStreamCut)
 
     val endStreamCut = PravegaSourceProvider.getPravegaStreamCut(
       caseInsensitiveParams, PravegaSourceProvider.END_STREAM_CUT_OPTION_KEY, LatestStreamCut)
-    assert(endStreamCut != EarliestStreamCut)
 
-    log.info(s"createRelation: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}, encoding=${encoding}"
+    log.info(s"createReader: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}, encoding=${encoding}"
       + s" startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}")
 
     createStreams(caseInsensitiveParams)
 
-    new PravegaRelation(
-      sqlContext,
-      parameters,
+    new PravegaDataSourceReader(
       scopeName,
       streamName,
       clientConfig,
       encoding,
+      options,
       startStreamCut,
       endStreamCut)
+  }
+
+  private def createMetadataReader(scopeName: String,
+                                   streamName: String,
+                                   clientConfig: ClientConfig,
+                                   metadataTableName: MetadataTableName.MetadataTableName,
+                                   caseInsensitiveParams: Map[String, String]): DataSourceReader = {
+    (for (streamManager <- managed(StreamManager.create(clientConfig))) yield {
+      metadataTableName match {
+        case MetadataTableName.StreamInfo => {
+          val streamInfo = streamManager.getStreamInfo(scopeName, streamName)
+          val schema = StructType(Seq(
+            StructField("head_stream_cut", StringType),
+            StructField("tail_stream_cut", StringType)
+          ))
+          val row = new GenericInternalRow(Seq(
+            UTF8String.fromString(streamInfo.getHeadStreamCut.asText()),
+            UTF8String.fromString(streamInfo.getTailStreamCut.asText())
+          ).toArray[Any])
+          MemoryDataSourceReader(schema, Seq(row))
+          }
+        case MetadataTableName.Streams => {
+          throw new NotImplementedError()
+          // TODO: Below disabled because it requires Pravega 0.5+.
+          // val streams = streamManager.listStreams(scopeName)
+        }
+      }
+    }).acquireAndGet(identity)
   }
 
   /**
@@ -327,6 +374,7 @@ object PravegaSourceProvider extends Logging {
   private[spark] val DEFAULT_NUM_SEGMENTS_OPTION_KEY = "default_num_segments"
   private[spark] val READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY = "read_after_write_consistency"
   private[spark] val TRANSACTION_STATUS_POLL_INTERVAL_MS_OPTION_KEY = "transaction_status_poll_interval_ms"
+  private[spark] val METADATA_OPTION_KEY = "metadata"
 
   private[spark] val STREAM_CUT_EARLIEST = "earliest"
   private[spark] val STREAM_CUT_LATEST = "latest"
@@ -359,7 +407,7 @@ object PravegaReader {
   private[spark] val SEGMENT_ID_FIELD_NAME = "segment_id"
   private[spark] val OFFSET_FIELD_NAME = "offset"
 
-  def pravegaSchema: StructType = StructType(Seq(
+  private[spark] val pravegaSchema: StructType = StructType(Seq(
     StructField(EVENT_FIELD_NAME, BinaryType),
     StructField(SCOPE_FIELD_NAME, StringType),
     StructField(STREAM_FIELD_NAME, StringType),
