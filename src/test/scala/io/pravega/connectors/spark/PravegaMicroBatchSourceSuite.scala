@@ -17,6 +17,7 @@ import io.pravega.connectors.spark.PravegaSourceProvider._
 import org.apache.spark.sql.execution.streaming._
 import org.apache.spark.sql.streaming.{ProcessingTime, StreamTest}
 import org.apache.spark.sql.test.SharedSQLContext
+import org.scalatest.time.Span
 import org.scalatest.time.SpanSugar._
 
 import scala.util.Random
@@ -25,7 +26,7 @@ abstract class PravegaSourceTest extends StreamTest with SharedSQLContext with P
 
   protected var testUtils: PravegaTestUtils = _
 
-  override val streamingTimeout = 30.seconds
+  override val streamingTimeout: Span = 30.seconds
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -115,7 +116,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
 
   import testImplicits._
 
-  test("cannot stop Pravega stream") {
+  test("stop stream before reading anything") {
     val streamName = newStreamName()
     testUtils.createTestStream(streamName, numSegments = 5)
     testUtils.sendMessages(streamName, (101 to 105).map { _.toString }.toArray)

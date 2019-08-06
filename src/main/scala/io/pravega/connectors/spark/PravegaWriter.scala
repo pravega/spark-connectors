@@ -33,18 +33,27 @@ case class PravegaWriterCommitMessage(transactionId: UUID) extends WriterCommitM
   * It uses Pravega transactions to support exactly-once semantics.
   * Used by both streaming and batch jobs.
   *
-  * @param transactionTimeoutTime   The number of milliseconds for transactions to timeout.
-  * @param schema                   The schema of the input data.
+  * @param transactionTimeoutMs            The number of milliseconds for transactions to timeout.
+  * @param readAfterWriteConsistency       If true, commit() does not return until the events are
+  *                                        visible to readers. If false, commit() returns as soon as
+  *                                        transactions enter the committing phase and events may
+  *                                        not be immediately visible to readers.
+  * @param transactionStatusPollIntervalMs If readAfterWriteConsistency is true, the transaction will be polled
+  *                                        with this interval of milliseconds.
+  * @param schema                          The schema of the input data.
+  *
   */
 class PravegaWriter(
                      scopeName: String,
                      streamName: String,
                      clientConfig: ClientConfig,
-                     transactionTimeoutTime: Long,
+                     transactionTimeoutMs: Long,
+                     readAfterWriteConsistency: Boolean,
+                     transactionStatusPollIntervalMs: Long,
                      schema: StructType)
   extends DataSourceWriter with StreamWriter with Logging {
 
-  private def createClientFactory(): ClientFactory = {
+  private def createClientFactory: ClientFactory = {
     ClientFactory.withScope(scopeName, clientConfig)
   }
 
@@ -53,40 +62,35 @@ class PravegaWriter(
       streamName,
       new ByteBufferSerializer,
       EventWriterConfig.builder
-        .transactionTimeoutTime(transactionTimeoutTime)
+        .transactionTimeoutTime(transactionTimeoutMs)
         .build)
   }
 
   override def createWriterFactory(): PravegaWriterFactory =
-    PravegaWriterFactory(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
+    PravegaWriterFactory(scopeName, streamName, clientConfig, transactionTimeoutMs, schema)
 
-  override def commit(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {
-    for {
-      clientFactory <- managed(createClientFactory())
-      writer <- managed(createWriter(clientFactory))
-    } {
-      messages
-        .map(_.asInstanceOf[PravegaWriterCommitMessage])
-        .map(_.transactionId)
-        .filter(_ != null)
-        .par
-        .foreach { transactionId =>
-          val transaction = writer.getTxn(transactionId)
-          val status = transaction.checkStatus
-          if (status == Transaction.Status.COMMITTED || status == Transaction.Status.COMMITTING) {
-            log.info(s"commit: transaction=${transactionId}, already committed")
-          } else if (status == Transaction.Status.OPEN) {
-            log.info(s"commit: transaction=${transactionId}, committing")
-            transaction.commit()
-          } else {
-            // ABORTED or ABORTING
-            throw new TxnFailedException()
-          }
-        }
+  /**
+    * To allow allows read-after-write consistency, we want to wait until the transaction transitions to COMMITTED
+    * which indicates that readers can view the events.
+    */
+  private def waitForCommittedTransaction(transaction: Transaction[ByteBuffer]): Unit = {
+    if (readAfterWriteConsistency) {
+      var status: Transaction.Status = transaction.checkStatus
+      while (status == Transaction.Status.COMMITTING) {
+        Thread.sleep(transactionStatusPollIntervalMs)
+        status = transaction.checkStatus
+      }
+      if (status != Transaction.Status.COMMITTED) {
+        // This should never happen.
+        log.error(s"waitForCommittedTransaction: Transaction ${transaction.getTxnId} changed from COMMITTING to ${status}")
+        throw new TxnFailedException()
+      }
+      log.info(s"waitForCommittedTransaction: transaction=${transaction.getTxnId}, committed")
     }
   }
 
-  override def abort(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {
+  override def commit(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {
+    log.debug(s"commit: BEGIN: epochId=$epochId, messages=${messages.mkString(",")}")
     for {
       clientFactory <- managed(createClientFactory)
       writer <- managed(createWriter(clientFactory))
@@ -98,13 +102,40 @@ class PravegaWriter(
         .par
         .foreach { transactionId =>
           val transaction = writer.getTxn(transactionId)
-          val status = transaction.checkStatus
-          if (status == Transaction.Status.OPEN) {
-            log.info(s"abort: transaction=${transactionId}, aborting")
+          log.info(s"commit: transaction=${transactionId}, calling commit")
+          transaction.commit()
+          log.info(s"commit: transaction=${transactionId}, committing")
+          waitForCommittedTransaction(transaction)
+        }
+    }
+    log.debug(s"commit: END: epochId=$epochId, messages=${messages.mkString(",")}")
+  }
+
+  override def abort(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {
+    log.debug(s"abort: BEGIN: epochId=$epochId, messages=${messages.mkString(",")}")
+    for {
+      clientFactory <- managed(createClientFactory)
+      writer <- managed(createWriter(clientFactory))
+      // TODO: An exception is thrown by the Pravega 0.4.0 client here for an unknown reason. The transaction will still abort when it times out.
+    } {
+      messages
+        .map(_.asInstanceOf[PravegaWriterCommitMessage])
+        .map(_.transactionId)
+        .filter(_ != null)
+        .par
+        .foreach { transactionId =>
+          log.info(s"abort: transaction=${transactionId}, aborting")
+          val transaction = writer.getTxn(transactionId)
+          try {
             transaction.abort()
+          } catch {
+            case ex: Throwable =>
+              // Log but ignore any errors.
+              log.info("abort: Ignoring exception during abort()", ex)
           }
         }
     }
+    log.debug(s"abort: END: epochId=$epochId, messages=${messages.mkString(",")}")
   }
 
   // Used for batch writer.
@@ -152,10 +183,10 @@ class PravegaDataWriter(
                                inputSchema: StructType)
   extends DataWriter[InternalRow] with Logging {
 
-  protected val projection = createProjection
+  private val projection = createProjection
 
-  private lazy val clientFactory = ClientFactory.withScope(scopeName, clientConfig)
-  private lazy val writer: EventStreamWriter[ByteBuffer] = clientFactory.createEventWriter(
+  private val clientFactory = ClientFactory.withScope(scopeName, clientConfig)
+  private val writer: EventStreamWriter[ByteBuffer] = clientFactory.createEventWriter(
     streamName,
     new ByteBufferSerializer,
     EventWriterConfig
@@ -163,9 +194,9 @@ class PravegaDataWriter(
       .transactionTimeoutTime(transactionTimeoutTime)
       .build)
 
-  private var transaction: Transaction[ByteBuffer] = null
+  private var transaction: Transaction[ByteBuffer] = _
 
-  def write(row: InternalRow): Unit = {
+  override def write(row: InternalRow): Unit = {
     val projectedRow = projection(row)
     val event = projectedRow.getBinary(1)
     val eventToLog = if (log.isDebugEnabled) {
@@ -176,7 +207,7 @@ class PravegaDataWriter(
 
     if (transaction == null) {
       transaction = writer.beginTxn()
-      log.info(s"write: began transaction ${transaction.getTxnId}")
+      log.info(s"write: transaction=${transaction.getTxnId}, begin")
     }
 
     val haveRoutingKey = !projectedRow.isNullAt(0)
@@ -190,36 +221,49 @@ class PravegaDataWriter(
     }
   }
 
-  def commit(): WriterCommitMessage = {
-    if (transaction == null) {
-      PravegaWriterCommitMessage(null)
-    } else {
-      log.info(s"commit: transaction=${transaction.getTxnId}")
-      transaction.flush()
-      val transactionId = transaction.getTxnId
-      transaction = null
-      PravegaWriterCommitMessage(transactionId)
+  override def commit(): WriterCommitMessage = {
+    try {
+      if (transaction == null) {
+        PravegaWriterCommitMessage(null)
+      } else {
+        log.info(s"commit: transaction=${transaction.getTxnId}, flushing")
+        transaction.flush()
+        log.debug(s"commit: transaction=${transaction.getTxnId}, flushed, sending transaction ID to driver for commit")
+        val transactionId = transaction.getTxnId
+        transaction = null
+        PravegaWriterCommitMessage(transactionId)
+      }
+    } finally {
+      close()
     }
   }
 
-  def abort(): Unit = {
-    if (transaction != null) {
-      transaction.abort()
-      transaction = null
+  override def abort(): Unit = {
+    try {
+      if (transaction != null) {
+        log.info(s"abort: transaction=${transaction.getTxnId}, aborting")
+        transaction.abort()
+        log.debug(s"abort: transaction=${transaction.getTxnId}, aborted")
+        transaction = null
+      }
+    } finally {
+      close()
     }
   }
 
-  def close(): Unit = {
-    if (transaction != null) {
-      transaction.abort()
-      transaction = null
-    }
-    if (writer != null) {
+  private def close(): Unit = {
+    log.debug("close: BEGIN")
+    try {
       writer.close()
+    } catch {
+      case e: Throwable => log.warn("close: exception during writer close", e)
     }
-    if (clientFactory != null) {
+    try {
       clientFactory.close()
+    } catch {
+      case e: Throwable => log.warn("close: exception during client factory close", e)
     }
+    log.debug("close: END")
   }
 
   private def createProjection = {

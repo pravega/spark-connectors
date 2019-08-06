@@ -12,26 +12,24 @@ package io.pravega.connectors.spark
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
+import io.pravega.connectors.spark.PravegaReader._
+import io.pravega.connectors.spark.PravegaSourceProvider._
 import org.apache.spark.SparkException
 import org.apache.spark.sql._
-import org.apache.spark.sql.catalyst.expressions.{AttributeReference, SpecificInternalRow, UnsafeProjection}
 import org.apache.spark.sql.execution.streaming.MemoryStream
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.streaming._
 import org.apache.spark.sql.test.SharedSQLContext
-import org.apache.spark.sql.types.{BinaryType, DataType}
-import org.scalatest.time.SpanSugar._
-import io.pravega.connectors.spark.PravegaSourceProvider._
-import io.pravega.connectors.spark.PravegaReader._
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
+import org.scalatest.time.Span
+import org.scalatest.time.SpanSugar._
 
 class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest {
   import testImplicits._
 
   protected var testUtils: PravegaTestUtils = _
 
-  override val streamingTimeout = 30.seconds
-  private val batchTimeout = 30.seconds
+  override val streamingTimeout: Span = 30.seconds
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -56,12 +54,9 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
       .save()
-    // Note that transactional results may not be immediately available to read.
-    eventually(Timeout(batchTimeout)) {
-      checkAnswer(
-        createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"),
-        Row("1") :: Row("2") :: Row("3") :: Row("4") :: Row("5") :: Nil)
-    }
+    checkAnswer(
+      createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"),
+      Row("1") :: Row("2") :: Row("3") :: Row("4") :: Row("5") :: Nil)
   }
 
   test("batch - write to Pravega with routing key") {
@@ -73,12 +68,9 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
       .save()
-    // Note that transactional results may not be immediately available to read.
-    eventually(Timeout(batchTimeout)) {
-      checkAnswer(
-        createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"),
-        Row("1") :: Row("2") :: Row("3") :: Row("4") :: Row("5") :: Nil)
-    }
+    checkAnswer(
+      createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"),
+      Row("1") :: Row("2") :: Row("3") :: Row("4") :: Row("5") :: Nil)
   }
 
   test("batch - unsupported save modes") {
@@ -127,6 +119,43 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       .save()
   }
 
+  test("batch - abort transaction") {
+    // Based on org/apache/spark/sql/sources/v2/DataSourceV2Suite.scala.
+    // This input data will fail to read part way in the 2nd partition.
+    val streamName = newStreamName()
+    val failingUdf = org.apache.spark.sql.functions.udf {
+      var count = 0
+      (id: Long, part: Long) => {
+        if (part == 1 && count > 5) {
+          System.out.println(s"failingUdf: throw exception at id=$id, part=$part")
+          // Sleep to hopefully allow partition 0 to call flush on the Pravega transaction.
+          Thread.sleep(1000)
+          throw new RuntimeException("testing error")
+        }
+        count += 1
+        id
+      }
+    }
+    val input = spark
+      .range(100)
+      .selectExpr("id", "spark_partition_id() as part")
+      .select(failingUdf('id, 'part).as('x))
+      .selectExpr("CAST(x as STRING) event")
+    val ex = intercept[SparkException] {
+      input.write
+        .format(SOURCE_PROVIDER_NAME)
+        .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+        .option(SCOPE_OPTION_KEY, testUtils.scope)
+        .option(STREAM_OPTION_KEY, streamName)
+        .save()
+      checkAnswer(createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"), Nil)
+    }
+    // make sure we don't have partial data.
+    checkAnswer(createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"), Nil)
+    assert(ex.getMessage.contains("Writing job failed"))
+}
+
+
   test("streaming - write to Pravega without routing key") {
     val input = MemoryStream[String]
     val streamName = newStreamName()
@@ -146,6 +175,39 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       failAfter(streamingTimeout) {
         writer.processAllAvailable()
       }
+      checkDatasetUnorderly(reader, 1, 2, 3, 4, 5)
+      input.addData("6", "7", "8", "9", "10")
+      failAfter(streamingTimeout) {
+        writer.processAllAvailable()
+      }
+      checkDatasetUnorderly(reader, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+    } finally {
+      writer.stop()
+    }
+  }
+
+  test("streaming - write to Pravega without read-after-write consistency") {
+    val input = MemoryStream[String]
+    val streamName = newStreamName()
+
+    val writer = createPravegaWriter(
+      input.toDF(),
+      withStreamName = Some(streamName),
+      withOutputMode = Some(OutputMode.Append),
+      withOptions = Map(
+        PravegaSourceProvider.READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY -> "false"))(
+      withSelectExpr = s"value as ${EVENT_ATTRIBUTE_NAME}")
+
+    def reader = createPravegaReader(streamName)
+      .selectExpr(s"CAST(CAST(${EVENT_FIELD_NAME} as STRING) as INT) event")
+      .as[Int]
+
+    try {
+      input.addData("1", "2", "3", "4", "5")
+      failAfter(streamingTimeout) {
+        writer.processAllAvailable()
+      }
+      // Since we disabled read-after-write consistency, we must reread until we get the expected result.
       eventually(Timeout(streamingTimeout)) {
         checkDatasetUnorderly(reader, 1, 2, 3, 4, 5)
       }
@@ -180,16 +242,12 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       failAfter(streamingTimeout) {
         writer.processAllAvailable()
       }
-      eventually(Timeout(streamingTimeout)) {
-        checkDatasetUnorderly(reader, 1, 2, 3, 4, 5)
-      }
+      checkDatasetUnorderly(reader, 1, 2, 3, 4, 5)
       input.addData("6", "7", "8", "9", "10")
       failAfter(streamingTimeout) {
         writer.processAllAvailable()
       }
-      eventually(Timeout(streamingTimeout)) {
-        checkDatasetUnorderly(reader, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
-      }
+      checkDatasetUnorderly(reader, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
     } finally {
       writer.stop()
     }
@@ -220,16 +278,12 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       failAfter(streamingTimeout) {
         writer.processAllAvailable()
       }
-      eventually(Timeout(streamingTimeout)) {
-        checkDatasetUnorderly(reader, (1, 1), (2, 2), (3, 3))
-      }
+      checkDatasetUnorderly(reader, (1, 1), (2, 2), (3, 3))
       input.addData("1", "2", "3")
       failAfter(streamingTimeout) {
         writer.processAllAvailable()
       }
-      eventually(Timeout(streamingTimeout)) {
-        checkDatasetUnorderly(reader, (1, 1), (2, 2), (3, 3), (1, 2), (2, 3), (3, 4))
-      }
+      checkDatasetUnorderly(reader, (1, 1), (2, 2), (3, 3), (1, 2), (2, 3), (3, 4))
     } finally {
       writer.stop()
     }
@@ -368,7 +422,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
     var stream: DataStreamWriter[Row] = null
     withTempDir { checkpointDir =>
       var df = input.toDF()
-      if (withSelectExpr.length > 0) {
+      if (withSelectExpr.nonEmpty) {
         df = df.selectExpr(withSelectExpr: _*)
       }
       stream = df.writeStream
