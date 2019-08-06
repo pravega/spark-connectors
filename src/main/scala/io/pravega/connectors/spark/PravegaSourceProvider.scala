@@ -16,15 +16,14 @@ import io.pravega.client.ClientConfig
 import io.pravega.client.admin.StreamManager
 import io.pravega.client.stream.{ScalingPolicy, StreamConfiguration, StreamCut}
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.sources.v2._
-import org.apache.spark.sql.sources.v2.reader.DataSourceReader
 import org.apache.spark.sql.sources.v2.reader.streaming.MicroBatchReader
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
 import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.{SQLContext, SaveMode}
 import resource.managed
 
 import scala.collection.JavaConverters._
@@ -37,7 +36,7 @@ object Encoding extends Enumeration {
 
 class PravegaSourceProvider extends DataSourceV2
   with MicroBatchReadSupport
-  with ReadSupport
+  with RelationProvider
   with DataSourceRegister
   with StreamWriteSupport
   with WriteSupport
@@ -104,22 +103,20 @@ class PravegaSourceProvider extends DataSourceV2
   }
 
   /**
-    * Creates a {@link DataSourceReader} to scan the data from this data source.
-    *
+    * Returns a new base relation with the given parameters.
     * This is used to read a Pravega stream as a dataframe in a batch job.
     *
-    * Unbounded stream cuts (earliest, latest, unbounded) are bound only once.
+    * Unbounded stream cuts (earliest, latest, unbounded) are bound only once. 
     * Late binding is not available.
     *
-    * If this method fails (by throwing an exception), the action will fail and no Spark job will be
-    * submitted.
-    *
-    * @param schema  the user specified schema.
-    * @param options the options for the returned data source reader, which is an immutable
-    *                case-insensitive string-to-string map.
+    * @note The parameters' keywords are case insensitive and this insensitivity is enforced
+    *       by the Map that is passed to the function.
     */
-  override def createReader(options: DataSourceOptions): DataSourceReader = {
-    val parameters = options.asMap().asScala.toMap
+  override def createRelation(
+                               sqlContext: SQLContext,
+                               parameters: Map[String, String]): BaseRelation = {
+
+    log.info(s"createRelation: parameters=${parameters}")
     val caseInsensitiveParams = parameters.map { case (k, v) => (k.toLowerCase(Locale.ROOT), v) }
     validateBatchOptions(caseInsensitiveParams)
 
@@ -130,21 +127,24 @@ class PravegaSourceProvider extends DataSourceV2
 
     val startStreamCut = PravegaSourceProvider.getPravegaStreamCut(
       caseInsensitiveParams, PravegaSourceProvider.START_STREAM_CUT_OPTION_KEY, EarliestStreamCut)
+    assert(startStreamCut != LatestStreamCut)
 
     val endStreamCut = PravegaSourceProvider.getPravegaStreamCut(
       caseInsensitiveParams, PravegaSourceProvider.END_STREAM_CUT_OPTION_KEY, LatestStreamCut)
+    assert(endStreamCut != EarliestStreamCut)
 
-    log.info(s"createReader: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}, encoding=${encoding}"
+    log.info(s"createRelation: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}, encoding=${encoding}"
       + s" startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}")
 
     createStreams(caseInsensitiveParams)
 
-    new PravegaDataSourceReader(
+    new PravegaRelation(
+      sqlContext,
+      parameters,
       scopeName,
       streamName,
       clientConfig,
       encoding,
-      options,
       startStreamCut,
       endStreamCut)
   }
@@ -359,7 +359,7 @@ object PravegaReader {
   private[spark] val SEGMENT_ID_FIELD_NAME = "segment_id"
   private[spark] val OFFSET_FIELD_NAME = "offset"
 
-  private[spark] val pravegaSchema: StructType = StructType(Seq(
+  def pravegaSchema: StructType = StructType(Seq(
     StructField(EVENT_FIELD_NAME, BinaryType),
     StructField(SCOPE_FIELD_NAME, StringType),
     StructField(STREAM_FIELD_NAME, StringType),
