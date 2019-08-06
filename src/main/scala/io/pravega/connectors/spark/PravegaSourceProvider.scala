@@ -16,13 +16,14 @@ import io.pravega.client.ClientConfig
 import io.pravega.client.admin.StreamManager
 import io.pravega.client.stream.{ScalingPolicy, StreamConfiguration, StreamCut}
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.sources._
+import org.apache.spark.sql.sources.v2._
 import org.apache.spark.sql.sources.v2.reader.streaming.MicroBatchReader
+import org.apache.spark.sql.sources.v2.writer.DataSourceWriter
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
-import org.apache.spark.sql.sources.v2.{DataSourceOptions, DataSourceV2, MicroBatchReadSupport, StreamWriteSupport}
-import org.apache.spark.sql.sources.{BaseRelation, DataSourceRegister, RelationProvider}
 import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.{SQLContext, SaveMode}
 
 import scala.collection.JavaConverters._
 
@@ -37,14 +38,33 @@ class PravegaSourceProvider extends DataSourceV2
   with RelationProvider
   with DataSourceRegister
   with StreamWriteSupport
+  with WriteSupport
   with Logging {
 
   private val DEFAULT_CONTROLLER = "tcp://localhost:9090"
-  private val DEFAULT_TRANSACTION_TIMEOUT_MS: Long = 30000
+  private val DEFAULT_TRANSACTION_TIMEOUT_MS: Long = 30*1000
+  private val DEFAULT_BATCH_TRANSACTION_TIMEOUT_MS: Long = 2*60*1000   // 2 minutes (maximum allowed by default server)
 
   /** String that represents the format that this data source provider uses. */
   override def shortName(): String = PravegaSourceProvider.SOURCE_PROVIDER_NAME
 
+  /**
+    * Creates a {@link MicroBatchReader} to read batches of data from this data source in a
+    * streaming query.
+    * This is used to read a Pravega stream as a datastream in a structured streaming job.
+    *
+    * The execution engine will create a micro-batch reader at the start of a streaming query,
+    * alternate calls to setOffsetRange and planInputPartitions for each batch to process, and
+    * then call stop() when the execution is complete. Note that a single query may have multiple
+    * executions due to restart or failure recovery.
+    *
+    * @param schema             the user provided schema, or empty() if none was provided
+    * @param checkpointLocation a path to Hadoop FS scratch space that can be used for failure
+    *                           recovery. Readers for the same logical source in the same query
+    *                           will be given the same checkpointLocation.
+    * @param options            the options for the returned data source reader, which is an immutable
+    *                           case-insensitive string-to-string map.
+    */
   override def createMicroBatchReader(
                                        schema: Optional[StructType],
                                        checkpointLocation: String,
@@ -82,8 +102,10 @@ class PravegaSourceProvider extends DataSourceV2
 
   /**
     * Returns a new base relation with the given parameters.
+    * This is used to read a Pravega stream as a dataframe in a batch job.
     *
-    * Unbounded stream cuts are bound only once. Late binding is not available.
+    * Unbounded stream cuts (earliest, latest, unbounded) are bound only once. 
+    * Late binding is not available.
     *
     * @note The parameters' keywords are case insensitive and this insensitivity is enforced
     *       by the Map that is passed to the function.
@@ -128,6 +150,7 @@ class PravegaSourceProvider extends DataSourceV2
   /**
     * Creates an optional {@link StreamWriter} to save the data to this data source. Data
     * sources can return None if there is no writing needed to be done.
+    * This is used to write a datastream to a Pravega stream in a structured streaming job.
     *
     * @param queryId A unique string for the writing query. It's possible that there are many
     *                writing queries running at the same time, and the returned
@@ -160,7 +183,59 @@ class PravegaSourceProvider extends DataSourceV2
 
     createStreams(caseInsensitiveParams)
 
-    new PravegaStreamWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
+    new PravegaWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
+  }
+
+  /**
+    * Creates an optional {@link DataSourceWriter} to save the data to this data source. Data
+    * sources can return None if there is no writing needed to be done according to the save mode.
+    *
+    * This is used to write a dataframe to a Pravega stream in a batch job.
+    *
+    * If this method fails (by throwing an exception), the action will fail and no Spark job will be
+    * submitted.
+    *
+    * @param writeUUID A unique string for the writing job. It's possible that there are many writing
+    *                  jobs running at the same time, and the returned { @link DataSourceWriter} can
+    *                                                                          use this job id to distinguish itself from other jobs.
+    * @param schema the schema of the data to be written.
+    * @param mode   the save mode which determines what to do when the data are already in this data
+    *               source, please refer to { @link SaveMode} for more details.
+    * @param options the options for the returned data source writer, which is an immutable
+    *                case-insensitive string-to-string map.
+    * @return a writer to append data to this data source
+    */
+  override def createWriter(
+                             writeUUID: String,
+                             schema: StructType,
+                             mode: SaveMode,
+                             options: DataSourceOptions): Optional[DataSourceWriter] = {
+
+    val parameters = options.asMap().asScala.toMap
+    val caseInsensitiveParams = parameters.map { case (k, v) => (k.toLowerCase(Locale.ROOT), v) }
+    validateBatchOptions(caseInsensitiveParams)
+
+    mode match {
+      case SaveMode.Overwrite | SaveMode.Ignore =>
+        throw new IllegalArgumentException(s"Save mode $mode not allowed for Pravega. " +
+          s"Allowed save modes are ${SaveMode.Append} and " +
+          s"${SaveMode.ErrorIfExists} (default).")
+      case _ => // good
+    }
+
+    val clientConfig = buildClientConfig(caseInsensitiveParams)
+    val scopeName = caseInsensitiveParams(PravegaSourceProvider.SCOPE_OPTION_KEY)
+    val streamName = caseInsensitiveParams(PravegaSourceProvider.STREAM_OPTION_KEY)
+    val transactionTimeoutTime = caseInsensitiveParams.get(PravegaSourceProvider.TRANSACTION_TIMEOUT_MS_OPTION_KEY) match {
+      case Some(s: String) => s.toLong
+      case None => DEFAULT_BATCH_TRANSACTION_TIMEOUT_MS
+    }
+
+    log.info(s"createWriter: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}, transactionTimeoutTime=${transactionTimeoutTime}")
+
+    createStreams(caseInsensitiveParams)
+
+    Optional.of(new PravegaWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema))
   }
 
   private def validateStreamOptions(caseInsensitiveParams: Map[String, String]): Unit = {

@@ -31,6 +31,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
   protected var testUtils: PravegaTestUtils = _
 
   override val streamingTimeout = 30.seconds
+  private val batchTimeout = 30.seconds
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -46,75 +47,85 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
     }
   }
 
-  // TODO: PravegaSourceProvider does not allow create table as select.
-  ignore("batch - write to pravega") {
+  test("batch - write to Pravega without routing key") {
     val streamName = newStreamName()
-    val df = Seq("1", "2", "3", "4", "5").map(v => (streamName, v)).toDF(ROUTING_KEY_ATTRIBUTE_NAME, EVENT_ATTRIBUTE_NAME)
+    val df = Seq("1", "2", "3", "4", "5").toDF(EVENT_ATTRIBUTE_NAME)
     df.write
       .format(SOURCE_PROVIDER_NAME)
       .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
       .save()
-    checkAnswer(
-      createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"),
-      Row("1") :: Row("2") :: Row("3") :: Row("4") :: Row("5") :: Nil)
+    // Note that transactional results may not be immediately available to read.
+    eventually(Timeout(batchTimeout)) {
+      checkAnswer(
+        createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"),
+        Row("1") :: Row("2") :: Row("3") :: Row("4") :: Row("5") :: Nil)
+    }
   }
 
-//  test("batch - null streamName field value, and no streamName option") {
-//    val df = Seq[(String, String)](null.asInstanceOf[String] -> "1").toDF("streamName", "value")
-//    val ex = intercept[SparkException] {
-//      df.write
-//        .format("pravega")
-//        .option("pravega.bootstrap.servers", testUtils.brokerAddress)
-//        .save()
-//    }
-//    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-//      "null streamName present in the data"))
-//  }
-//
-//  test("batch - unsupported save modes") {
-//    val streamName = newStreamName()
-//    testUtils.createTopic(streamName)
-//    val df = Seq[(String, String)](null.asInstanceOf[String] -> "1").toDF("streamName", "value")
-//
-//    // Test bad save mode Ignore
-//    var ex = intercept[AnalysisException] {
-//      df.write
-//        .format("pravega")
-//        .option("pravega.bootstrap.servers", testUtils.brokerAddress)
-//        .mode(SaveMode.Ignore)
-//        .save()
-//    }
-//    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-//      s"save mode ignore not allowed for pravega"))
-//
-//    // Test bad save mode Overwrite
-//    ex = intercept[AnalysisException] {
-//      df.write
-//        .format("pravega")
-//        .option("pravega.bootstrap.servers", testUtils.brokerAddress)
-//        .mode(SaveMode.Overwrite)
-//        .save()
-//    }
-//    assert(ex.getMessage.toLowerCase(Locale.ROOT).contains(
-//      s"save mode overwrite not allowed for pravega"))
-//  }
-//
-//  test("SPARK-20496: batch - enforce analyzed plans") {
-//    val inputEvents =
-//      spark.range(1, 1000)
-//        .select(to_json(struct("*")) as 'value)
-//
-//    val streamName = newStreamName()
-//    testUtils.createTopic(streamName)
-//    // used to throw UnresolvedException
-//    inputEvents.write
-//      .format("pravega")
-//      .option("pravega.bootstrap.servers", testUtils.brokerAddress)
-//      .option("streamName", streamName)
-//      .save()
-//  }
+  test("batch - write to Pravega with routing key") {
+    val streamName = newStreamName()
+    val df = Seq("1", "2", "3", "4", "5").map(v => (v, v)).toDF(ROUTING_KEY_ATTRIBUTE_NAME, EVENT_ATTRIBUTE_NAME)
+    df.write
+      .format(SOURCE_PROVIDER_NAME)
+      .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+      .option(SCOPE_OPTION_KEY, testUtils.scope)
+      .option(STREAM_OPTION_KEY, streamName)
+      .save()
+    // Note that transactional results may not be immediately available to read.
+    eventually(Timeout(batchTimeout)) {
+      checkAnswer(
+        createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"),
+        Row("1") :: Row("2") :: Row("3") :: Row("4") :: Row("5") :: Nil)
+    }
+  }
+
+  test("batch - unsupported save modes") {
+    val streamName = newStreamName()
+    val df = Seq("1", "2", "3", "4", "5").toDF(EVENT_ATTRIBUTE_NAME)
+
+    // Test bad save mode Ignore
+    var ex = intercept[IllegalArgumentException] {
+      df.write
+        .format(SOURCE_PROVIDER_NAME)
+        .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+        .option(SCOPE_OPTION_KEY, testUtils.scope)
+        .option(STREAM_OPTION_KEY, streamName)
+        .mode(SaveMode.Ignore)
+        .save()
+    }
+    assert(PravegaTestUtils.exceptionString(ex).toLowerCase(Locale.ROOT).contains(
+      s"save mode ignore not allowed for pravega"))
+
+    // Test bad save mode Overwrite
+    ex = intercept[IllegalArgumentException] {
+      df.write
+        .format(SOURCE_PROVIDER_NAME)
+        .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+        .option(SCOPE_OPTION_KEY, testUtils.scope)
+        .option(STREAM_OPTION_KEY, streamName)
+        .mode(SaveMode.Overwrite)
+        .save()
+    }
+    assert(PravegaTestUtils.exceptionString(ex).toLowerCase(Locale.ROOT).contains(
+      s"save mode overwrite not allowed for pravega"))
+  }
+
+  test("SPARK-20496: batch - enforce analyzed plans") {
+    val inputEvents =
+      spark.range(1, 1000)
+        .select(to_json(struct("*")) as 'event)
+
+    val streamName = newStreamName()
+    // used to throw UnresolvedException
+    inputEvents.write
+      .format(SOURCE_PROVIDER_NAME)
+      .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+      .option(SCOPE_OPTION_KEY, testUtils.scope)
+      .option(STREAM_OPTION_KEY, streamName)
+      .save()
+  }
 
   test("streaming - write to Pravega without routing key") {
     val input = MemoryStream[String]
@@ -311,7 +322,8 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
     assert(PravegaTestUtils.exceptionString(ex).toLowerCase(Locale.ROOT).contains("scope does not exist"))
   }
 
-  test("streaming - write to non-existing stream") {
+  // This test takes 3 minutes because it must wait for a timeout.
+  ignore("streaming - write to non-existing stream") {
     val input = MemoryStream[String]
     val streamName = newStreamName()
 
