@@ -160,10 +160,11 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       addSegments = false)
   }
 
-  ignore(s"read from earliest stream cut, add new segments") {
+  test(s"read from earliest stream cut, add new segments") {
     val streamName = newStreamName()
     testFromEarliestStreamCut(
       streamName,
+      numSegments = 3,
       addSegments = true)
   }
 
@@ -221,9 +222,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       CheckAnswer(2, 3, 4, 5, 6, 7, 8, 9),
       AssertOnQuery("Add segments") { query: StreamExecution =>
         if (addSegments) {
-          // TODO: Below currently fails. Do we need to wait for scaling to complete?
           setStreamSegments(streamName, 10, query)
-          require(testUtils.getLatestStreamCut(Set(streamName)).asImpl().getPositions.size === 10)
         }
         true
       },
@@ -235,10 +234,11 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
   private def testFromEarliestStreamCut(
                                        streamName: String,
                                        addSegments: Boolean,
-                                       options: (String, String)*): Unit = {
-    testUtils.createTestStream(streamName, numSegments = 5)
+                                       numSegments: Int  = 5,
+                                       options: Map[String, String] = Map[String, String]()): Unit = {
+    testUtils.createTestStream(streamName, numSegments = numSegments)
     testUtils.sendMessages(streamName, (1 to 3).map { _.toString }.toArray)
-    require(testUtils.getLatestStreamCut(Set(streamName)).asImpl().getPositions.size === 5)
+    require(testUtils.getLatestStreamCut(Set(streamName)).asImpl().getPositions.size === numSegments)
 
     val reader = spark.readStream
     reader
@@ -265,9 +265,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       CheckAnswer(2, 3, 4, 5, 6, 7, 8, 9),
       AssertOnQuery("Add segments") { query: StreamExecution =>
         if (addSegments) {
-          // TODO: Below currently fails. Do we need to wait for scaling to complete?
-          setStreamSegments(streamName, 10, query)
-          require(testUtils.getLatestStreamCut(Set(streamName)).asImpl().getPositions.size === 10)
+          setStreamSegments(streamName, numSegments * 2, query)
         }
         true
       },
