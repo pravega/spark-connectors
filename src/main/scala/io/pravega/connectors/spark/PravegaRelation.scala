@@ -1,12 +1,12 @@
 /**
-  * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
-  *
-  * Licensed under the Apache License, Version 2.0 (the "License");
-  * you may not use this file except in compliance with the License.
-  * You may obtain a copy of the License at
-  *
-  *     http://www.apache.org/licenses/LICENSE-2.0
-  */
+ * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.connectors.spark
 
 import io.pravega.client.admin.StreamManager
@@ -27,7 +27,9 @@ class PravegaRelation(
     scopeName: String,
     streamName: String,
     clientConfig: ClientConfig,
-    encoding: Encoding.Value)
+    encoding: Encoding.Value,
+    startStreamCut: PravegaStreamCut,
+    endStreamCut: PravegaStreamCut)
     extends BaseRelation with TableScan with Logging {
 
   override def schema: StructType = PravegaReader.pravegaSchema
@@ -37,16 +39,25 @@ class PravegaRelation(
       streamManager <- managed(StreamManager.create(clientConfig))
       clientFactory <- managed(ClientFactory.withScope(scopeName, clientConfig))
     } yield {
-    val batchClient = clientFactory.createBatchClient()
+      val batchClient = clientFactory.createBatchClient()
 
-    val streamInfo = streamManager.getStreamInfo(scopeName, streamName)
-    val startStreamCut = streamInfo.getHeadStreamCut
-    val endStreamCut = streamInfo.getTailStreamCut
+      lazy val streamInfo = streamManager.getStreamInfo(scopeName, streamName)
 
-    log.info(s"buildScan: startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}")
+      val fromStreamCut = startStreamCut match {
+        case EarliestStreamCut | UnboundedStreamCut => streamInfo.getHeadStreamCut
+        case LatestStreamCut => streamInfo.getTailStreamCut
+        case SpecificStreamCut(sc) => sc
+      }
+      val toStreamCut = endStreamCut match {
+        case EarliestStreamCut => streamInfo.getHeadStreamCut
+        case LatestStreamCut | UnboundedStreamCut => streamInfo.getTailStreamCut
+        case SpecificStreamCut(sc) => sc
+      }
+
+    log.info(s"buildScan: fromStreamCut=${fromStreamCut}, toStreamCut=${toStreamCut}")
 
     val segmentRanges: Seq[SegmentRange] = batchClient
-      .getSegments(Stream.of(scopeName, streamName), startStreamCut, endStreamCut)
+      .getSegments(Stream.of(scopeName, streamName), fromStreamCut, toStreamCut)
       .getIterator
       .asScala
       .toList
