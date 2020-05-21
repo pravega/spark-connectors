@@ -14,8 +14,8 @@ import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 import io.pravega.client.stream.impl.ByteBufferSerializer
-import io.pravega.client.stream.{EventStreamWriter, EventWriterConfig, Transaction, TxnFailedException}
-import io.pravega.client.{ClientConfig, ClientFactory}
+import io.pravega.client.stream.{TransactionalEventStreamWriter, EventWriterConfig, Transaction, TxnFailedException}
+import io.pravega.client.{ClientConfig, EventStreamClientFactory}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Cast, Literal, UnsafeProjection}
@@ -53,12 +53,12 @@ class PravegaWriter(
                      schema: StructType)
   extends DataSourceWriter with StreamWriter with Logging {
 
-  private def createClientFactory: ClientFactory = {
-    ClientFactory.withScope(scopeName, clientConfig)
+  private def createClientFactory: EventStreamClientFactory = {
+    EventStreamClientFactory.withScope(scopeName, clientConfig)
   }
 
-  private def createWriter(clientFactory: ClientFactory): EventStreamWriter[ByteBuffer] = {
-    clientFactory.createEventWriter(
+  private def createWriter(clientFactory: EventStreamClientFactory): TransactionalEventStreamWriter[ByteBuffer] = {
+    clientFactory.createTransactionalEventWriter(
       streamName,
       new ByteBufferSerializer,
       EventWriterConfig.builder
@@ -185,8 +185,8 @@ class PravegaDataWriter(
 
   private val projection = createProjection
 
-  private val clientFactory = ClientFactory.withScope(scopeName, clientConfig)
-  private val writer: EventStreamWriter[ByteBuffer] = clientFactory.createEventWriter(
+  private val clientFactory = EventStreamClientFactory.withScope(scopeName, clientConfig)
+  private val writer: TransactionalEventStreamWriter[ByteBuffer] = clientFactory.createTransactionalEventWriter(
     streamName,
     new ByteBufferSerializer,
     EventWriterConfig
