@@ -348,8 +348,6 @@ class PravegaSourceProvider extends DataSourceV2
       val allowCreateStream = caseInsensitiveParams.getOrElse(PravegaSourceProvider.ALLOW_CREATE_STREAM_OPTION_KEY, "true").toBoolean
       if (allowCreateStream) {
         var streamConfig = StreamConfiguration.builder
-          .scope(scopeName)
-          .streamName(streamName)
         streamConfig = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_NUM_SEGMENTS_OPTION_KEY) match {
           case Some(n) => streamConfig.scalingPolicy(ScalingPolicy.fixed(n.toInt))
           case None => streamConfig

@@ -15,7 +15,7 @@ import java.{util => ju}
 import io.pravega.client.batch.SegmentRange
 import io.pravega.client.stream.impl.ByteBufferSerializer
 import io.pravega.client.stream.{Stream, StreamCut}
-import io.pravega.client.{ClientConfig, ClientFactory}
+import io.pravega.client.{BatchClientFactory, ClientConfig}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow
@@ -53,9 +53,8 @@ class PravegaReaderBase(
     * submitted.
     */
   override def planInputPartitions(): ju.List[InputPartition[InternalRow]] = {
-    (for (clientFactory <- managed(ClientFactory.withScope(scopeName, clientConfig))) yield {
-      val batchClient = clientFactory.createBatchClient()
-      batchClient
+    (for (batchClientFactory <- managed(BatchClientFactory.withScope(scopeName, clientConfig))) yield {
+      batchClientFactory
         .getSegments(Stream.of(scopeName, streamName), batchStartStreamCut, batchEndStreamCut)
         .getIterator
         .asScala
@@ -86,9 +85,8 @@ case class PravegaInputPartitionReader(
                                         clientConfig: ClientConfig,
                                         encoding: Encoding.Value) extends InputPartitionReader[InternalRow] with Logging {
 
-  private val clientFactory = ClientFactory.withScope(segmentRange.getScope, clientConfig)
-  private val batchClient = clientFactory.createBatchClient()
-  private val rawIterator = batchClient.readSegment(segmentRange, new ByteBufferSerializer)
+  private val batchClientFactory = BatchClientFactory.withScope(segmentRange.getScope, clientConfig)
+  private val rawIterator = batchClientFactory.readSegment(segmentRange, new ByteBufferSerializer)
   private val iterator = EventIterator(rawIterator, encoding)
 
   private val converter = new PravegaRecordToUnsafeRowConverter
@@ -130,7 +128,7 @@ case class PravegaInputPartitionReader(
   override def close(): Unit = {
     log.debug("close: BEGIN")
     iterator.close()
-    clientFactory.close()
+    batchClientFactory.close()
     log.debug("close: END")
   }
 }
