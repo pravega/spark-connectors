@@ -33,7 +33,6 @@ class PravegaReaderBase(
                           scopeName: String,
                           streamName: String,
                           clientConfig: ClientConfig,
-                          encoding: Encoding.Value,
                           options: DataSourceOptions
     ) extends DataSourceReader with Logging {
 
@@ -59,7 +58,7 @@ class PravegaReaderBase(
         .getIterator
         .asScala
         .toList
-        .map(PravegaInputPartition(_, clientConfig, encoding): InputPartition[InternalRow])
+        .map(PravegaInputPartition(_, clientConfig): InputPartition[InternalRow])
         .asJava
     }).acquireAndGet(identity)
   }
@@ -72,22 +71,19 @@ class PravegaReaderBase(
 /** An [[InputPartition]] for reading a Pravega stream. */
 case class PravegaInputPartition(
                                   segmentRange: SegmentRange,
-                                  clientConfig: ClientConfig,
-                                  encoding: Encoding.Value) extends InputPartition[InternalRow] {
+                                  clientConfig: ClientConfig) extends InputPartition[InternalRow] {
 
   override def createPartitionReader(): InputPartitionReader[InternalRow] =
-    PravegaInputPartitionReader(segmentRange, clientConfig, encoding)
+    PravegaInputPartitionReader(segmentRange, clientConfig)
 }
 
 /** An [[InputPartitionReader]] for reading a Pravega stream. */
 case class PravegaInputPartitionReader(
                                         segmentRange: SegmentRange,
-                                        clientConfig: ClientConfig,
-                                        encoding: Encoding.Value) extends InputPartitionReader[InternalRow] with Logging {
+                                        clientConfig: ClientConfig) extends InputPartitionReader[InternalRow] with Logging {
 
   private val batchClientFactory = BatchClientFactory.withScope(segmentRange.getScope, clientConfig)
-  private val rawIterator = batchClientFactory.readSegment(segmentRange, new ByteBufferSerializer)
-  private val iterator = EventIterator(rawIterator, encoding)
+  private val iterator = batchClientFactory.readSegment(segmentRange, new ByteBufferSerializer)
 
   private val converter = new PravegaRecordToUnsafeRowConverter
   private var nextRow: UnsafeRow = _
