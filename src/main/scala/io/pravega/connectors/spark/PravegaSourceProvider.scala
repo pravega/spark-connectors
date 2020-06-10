@@ -31,12 +31,6 @@ import resource.managed
 
 import scala.collection.JavaConverters._
 
-object Encoding extends Enumeration {
-  type Encoding = Value
-  val None: Value = Value("none")
-  val Chunked_v1: Value = Value("chunked_v1")
-}
-
 object MetadataTableName extends Enumeration {
   type MetadataTableName = Value
   val StreamInfo: Value = Value("StreamInfo")
@@ -88,7 +82,6 @@ class PravegaSourceProvider extends DataSourceV2
     val clientConfig = buildClientConfig(caseInsensitiveParams)
     val scopeName = caseInsensitiveParams(PravegaSourceProvider.SCOPE_OPTION_KEY)
     val streamName = caseInsensitiveParams(PravegaSourceProvider.STREAM_OPTION_KEY)
-    val encoding = Encoding.withName(caseInsensitiveParams.getOrElse(PravegaSourceProvider.ENCODING_OPTION_KEY, Encoding.None.toString))
 
     val startStreamCut = PravegaSourceProvider.getPravegaStreamCut(
       caseInsensitiveParams, PravegaSourceProvider.START_STREAM_CUT_OPTION_KEY, LatestStreamCut)
@@ -96,7 +89,7 @@ class PravegaSourceProvider extends DataSourceV2
     val endStreamCut = PravegaSourceProvider.getPravegaStreamCut(
       caseInsensitiveParams, PravegaSourceProvider.END_STREAM_CUT_OPTION_KEY, UnboundedStreamCut)
 
-    log.info(s"createMicroBatchReader: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}, encoding=${encoding}"
+    log.info(s"createMicroBatchReader: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}"
       + s" startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}")
 
     createStreams(caseInsensitiveParams)
@@ -105,7 +98,6 @@ class PravegaSourceProvider extends DataSourceV2
       scopeName,
       streamName,
       clientConfig,
-      encoding,
       options,
       startStreamCut,
       endStreamCut)
@@ -145,15 +137,13 @@ class PravegaSourceProvider extends DataSourceV2
         caseInsensitiveParams)
     }
 
-    val encoding = Encoding.withName(caseInsensitiveParams.getOrElse(PravegaSourceProvider.ENCODING_OPTION_KEY, Encoding.None.toString))
-
     val startStreamCut = PravegaSourceProvider.getPravegaStreamCut(
       caseInsensitiveParams, PravegaSourceProvider.START_STREAM_CUT_OPTION_KEY, EarliestStreamCut)
 
     val endStreamCut = PravegaSourceProvider.getPravegaStreamCut(
       caseInsensitiveParams, PravegaSourceProvider.END_STREAM_CUT_OPTION_KEY, LatestStreamCut)
 
-    log.info(s"createReader: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}, encoding=${encoding}"
+    log.info(s"createReader: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}"
       + s" startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}")
 
     createStreams(caseInsensitiveParams)
@@ -162,7 +152,6 @@ class PravegaSourceProvider extends DataSourceV2
       scopeName,
       streamName,
       clientConfig,
-      encoding,
       options,
       startStreamCut,
       endStreamCut)
@@ -364,7 +353,6 @@ object PravegaSourceProvider extends Logging {
   private[spark] val SCOPE_OPTION_KEY = "scope"
   private[spark] val STREAM_OPTION_KEY = "stream"
   private[spark] val TRANSACTION_TIMEOUT_MS_OPTION_KEY = "transaction_timeout_ms"
-  private[spark] val ENCODING_OPTION_KEY = "encoding"
   private[spark] val START_STREAM_CUT_OPTION_KEY = "start_stream_cut"
   private[spark] val END_STREAM_CUT_OPTION_KEY = "end_stream_cut"
   private[spark] val ALLOW_CREATE_SCOPE_OPTION_KEY = "allow_create_scope"

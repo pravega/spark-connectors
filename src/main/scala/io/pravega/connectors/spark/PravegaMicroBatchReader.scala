@@ -27,11 +27,10 @@ import org.apache.spark.sql.sources.v2.reader.streaming.{MicroBatchReader, Offse
 class PravegaMicroBatchReader(scopeName: String,
                               streamName: String,
                               clientConfig: ClientConfig,
-                              encoding: Encoding.Value,
                               options: DataSourceOptions,
                               startStreamCut: PravegaStreamCut,
                               endStreamCut: PravegaStreamCut
-    ) extends PravegaReaderBase(scopeName, streamName, clientConfig, encoding, options)
+    ) extends PravegaReaderBase(scopeName, streamName, clientConfig, options)
       with MicroBatchReader with Logging with AutoCloseable {
 
   private val streamManager = StreamManager.create(clientConfig)

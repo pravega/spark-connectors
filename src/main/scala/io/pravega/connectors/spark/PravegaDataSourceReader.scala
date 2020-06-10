@@ -22,11 +22,10 @@ import org.apache.spark.sql.sources.v2.reader.DataSourceReader
 class PravegaDataSourceReader(scopeName: String,
                               streamName: String,
                               clientConfig: ClientConfig,
-                              encoding: Encoding.Value,
                               options: DataSourceOptions,
                               startStreamCut: PravegaStreamCut,
                               endStreamCut: PravegaStreamCut
-   ) extends PravegaReaderBase(scopeName, streamName, clientConfig, encoding, options)
+   ) extends PravegaReaderBase(scopeName, streamName, clientConfig, options)
      with Logging {
 
   batchStartStreamCut = startStreamCut match {
