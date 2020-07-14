@@ -449,17 +449,25 @@ class PravegaSourceStressSuite extends PravegaSourceTest {
 
   val streamNumber = new AtomicInteger(1)
 
+  // create new Random object
+  val randomNumberGen = new Random()
+
   @volatile var streamNames: Seq[String] = (1 to 1).map(_ => newStressStreamName)
 
   def newStressStreamName: String = s"stress${streamNumber.getAndIncrement()}"
 
   private def nextInt(start: Int, end: Int): Int = {
-    start + Random.nextInt(start + end - 1)
+    start + randomNumberGen.nextInt(start + end - 1)
   }
 
   test("stress test with multiple streams and segments")  {
+    // Set seed to find random number of segments to scale with
+    val seed = 1
+    randomNumberGen.setSeed(seed)
+
     streamNames.foreach { streamName =>
-      testUtils.createTestStream(streamName, numSegments = nextInt(1, 6))
+      val numSegments = nextInt(1, 6)
+      testUtils.createTestStream(streamName, numSegments = numSegments)
       testUtils.sendMessages(streamName, (101 to 105).map { _.toString }.toArray)
     }
 
@@ -483,7 +491,7 @@ class PravegaSourceStressSuite extends PravegaSourceTest {
       mapped,
       Seq(makeSureGetOffsetCalled),
       (d, running) => {
-        Random.nextInt(5) match {
+        nextInt(0, 5) match {
           case 0 => // Set number of segments
             AddPravegaData(streamNames.toSet, d: _*)(
               message = "Set number of segments",

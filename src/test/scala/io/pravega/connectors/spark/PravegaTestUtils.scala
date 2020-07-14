@@ -1,12 +1,12 @@
 /**
- * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- */
+  * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+  * You may obtain a copy of the License at
+  *
+  *     http://www.apache.org/licenses/LICENSE-2.0
+  */
 package io.pravega.connectors.spark
 
 import java.io.{PrintWriter, StringWriter}
@@ -19,17 +19,23 @@ import io.pravega.client.stream._
 import io.pravega.client.stream.impl.UTF8StringSerializer
 import io.pravega.test.integration.utils.SetupUtils
 import org.apache.spark.internal.Logging
+import org.scalatest.concurrent.Eventually.eventually
+import org.scalatest.concurrent.PatienceConfiguration.Timeout
+import org.scalatest.time.Span
 import resource.managed
+import org.scalatest.time.SpanSugar._
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
 /**
- * This is a helper class for Pravega test suites. This has the functionality to set up
- * and tear down local Pravega servers, and to write data using Pravega writers.
- */
+  * This is a helper class for Pravega test suites. This has the functionality to set up
+  * and tear down local Pravega servers, and to write data using Pravega writers.
+  */
 class PravegaTestUtils extends Logging {
   private val SETUP_UTILS = new SetupUtils
+
+  private val streamingTimeout: Span = 5.seconds
 
   // Kafka producer
   private var writer: EventStreamWriter[String] = _
@@ -107,9 +113,12 @@ class PravegaTestUtils extends Logging {
     *
     * @param numSegments  After scaling, there will be this many segments.
     */
-  def setStreamSegments(streamName: String, numSegments: Int): Unit = {
+  def setStreamSegments(streamName: String, numSegments: Int): Unit = this.synchronized {
     log.info(s"setStreamSegments: BEGIN: numSegments=$numSegments")
     for (streamManager <- managed(StreamManager.create(SETUP_UTILS.getControllerUri))) {
+      // set min num of segments to numSegments
+      streamManager.updateStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(numSegments)).build())
+
       val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor
       try {
         // Get current list of segments.
@@ -122,13 +131,13 @@ class PravegaTestUtils extends Logging {
         val stream: Stream = Stream.of(scope, streamName)
         // Scale stream and wait.
         SETUP_UTILS.getController.scaleStream(stream, sealedSegments, newKeyRanges, executor).getFuture.get
-        // Get new list of segments.
-        val newSegments = SETUP_UTILS.getController.getCurrentSegments(scope, streamName).get
-        log.info(s"setStreamSegments: after scaling: newSegments=$newSegments")
-        // Check tail stream cut and ensure that it includes the expected number of segments.
-        val streamInfo = streamManager.getStreamInfo(scope, streamName)
-        log.info(s"setStreamSegments: numSegments=$numSegments, streamInfo=$streamInfo")
-        assert(streamInfo.getTailStreamCut.asImpl.getPositions.size == numSegments)
+
+        eventually(Timeout(streamingTimeout)) {
+          // Get new list of segments.
+          val newSegments = SETUP_UTILS.getController.getCurrentSegments(scope, streamName).get
+          log.info(s"setStreamSegments: after scaling: newSegments=$newSegments")
+          assert(newSegments.getSegments.size == numSegments)
+        }
         log.info("setStreamSegments: END")
       } finally {
         executor.shutdown()
