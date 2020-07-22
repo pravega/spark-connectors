@@ -46,8 +46,8 @@ class PravegaSourceProvider extends DataSourceV2
   with Logging {
 
   private val DEFAULT_CONTROLLER = "tcp://localhost:9090"
-  private val DEFAULT_TRANSACTION_TIMEOUT_MS: Long = 30*1000
-  private val DEFAULT_BATCH_TRANSACTION_TIMEOUT_MS: Long = 2*60*1000   // 2 minutes (maximum allowed by default server)
+  private val DEFAULT_TRANSACTION_TIMEOUT_MS: Long = 30 * 1000
+  private val DEFAULT_BATCH_TRANSACTION_TIMEOUT_MS: Long = 2 * 60 * 1000 // 2 minutes (maximum allowed by default server)
   private val DEFAULT_TRANSACTION_STATUS_POLL_INTERVAL_MS: Long = 50
 
   /** String that represents the format that this data source provider uses. */
@@ -175,7 +175,7 @@ class PravegaSourceProvider extends DataSourceV2
             UTF8String.fromString(streamInfo.getTailStreamCut.asText())
           ).toArray[Any])
           MemoryDataSourceReader(schema, Seq(row))
-          }
+        }
         case MetadataTableName.Streams => {
           throw new NotImplementedError()
           // TODO: Below disabled because it requires Pravega 0.5+.
@@ -247,12 +247,12 @@ class PravegaSourceProvider extends DataSourceV2
     *
     * @param writeUUID A unique string for the writing job. It's possible that there are many writing
     *                  jobs running at the same time, and the returned { @link DataSourceWriter} can
-    *                                                                          use this job id to distinguish itself from other jobs.
-    * @param schema the schema of the data to be written.
-    * @param mode   the save mode which determines what to do when the data are already in this data
-    *               source, please refer to { @link SaveMode} for more details.
-    * @param options the options for the returned data source writer, which is an immutable
-    *                case-insensitive string-to-string map.
+    *                  use this job id to distinguish itself from other jobs.
+    * @param schema    the schema of the data to be written.
+    * @param mode      the save mode which determines what to do when the data are already in this data
+    *                  source, please refer to { @link SaveMode} for more details.
+    * @param options   the options for the returned data source writer, which is an immutable
+    *                  case-insensitive string-to-string map.
     * @return a writer to append data to this data source
     */
   override def createWriter(
@@ -326,6 +326,8 @@ class PravegaSourceProvider extends DataSourceV2
       .build()
   }
 
+  // call buildstreamconfig
+  // expose for testing
   private def createStreams(caseInsensitiveParams: Map[String, String]): Unit = {
     val clientConfig = buildClientConfig(caseInsensitiveParams)
     for (streamManager <- managed(StreamManager.create(clientConfig))) {
@@ -336,12 +338,8 @@ class PravegaSourceProvider extends DataSourceV2
       val streamName = caseInsensitiveParams(PravegaSourceProvider.STREAM_OPTION_KEY)
       val allowCreateStream = caseInsensitiveParams.getOrElse(PravegaSourceProvider.ALLOW_CREATE_STREAM_OPTION_KEY, "true").toBoolean
       if (allowCreateStream) {
-        var streamConfig = StreamConfiguration.builder
-        streamConfig = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_NUM_SEGMENTS_OPTION_KEY) match {
-          case Some(n) => streamConfig.scalingPolicy(ScalingPolicy.fixed(n.toInt))
-          case None => streamConfig
-        }
-        streamManager.createStream(scopeName, streamName, streamConfig.build())
+        val streamConfig = PravegaSourceProvider.buildStreamConfig(caseInsensitiveParams)
+        streamManager.createStream(scopeName, streamName, streamConfig)
       }
     }
   }
@@ -361,12 +359,44 @@ object PravegaSourceProvider extends Logging {
   private[spark] val READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY = "read_after_write_consistency"
   private[spark] val TRANSACTION_STATUS_POLL_INTERVAL_MS_OPTION_KEY = "transaction_status_poll_interval_ms"
   private[spark] val METADATA_OPTION_KEY = "metadata"
+  private[spark] val DEFAULT_SCALE_FACTOR_OPTION_KEY = "default_scale_factor"
+  private[spark] val DEFAULT_SEGMENT_TARGET_RATE_BYTES_PER_SEC_OPTION_KEY = "default_segment_target_rate_bytes_per_sec"
+  private[spark] val DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY = "default_segment_target_rate_events_per_sec"
+
 
   private[spark] val STREAM_CUT_EARLIEST = "earliest"
   private[spark] val STREAM_CUT_LATEST = "latest"
   private[spark] val STREAM_CUT_UNBOUNDED = "unbounded"
   private[spark] val ROUTING_KEY_ATTRIBUTE_NAME = "routing_key"
   private[spark] val EVENT_ATTRIBUTE_NAME = "event"
+
+
+  //TODO: new method, return stream-config
+  def buildStreamConfig(caseInsensitiveParams: Map[String, String]): StreamConfiguration = { // take createInsensitiveParams, and return stream config object, uildunit test for this method
+    var streamConfig = StreamConfiguration.builder
+    val minSegments = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_NUM_SEGMENTS_OPTION_KEY)
+    val scaleFactor = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SCALE_FACTOR_OPTION_KEY)
+    val targetRateBytesPerSec = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_BYTES_PER_SEC_OPTION_KEY)
+    val targetRateEventsPerSec = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY)
+
+    streamConfig = (minSegments, scaleFactor, targetRateBytesPerSec, targetRateEventsPerSec) match {
+      case (Some(minSegments), scaleFactor, targetRateKiloBytesPerSec, targetRateEventsPerSec) =>
+        (scaleFactor, targetRateKiloBytesPerSec, targetRateEventsPerSec) match {
+          case (Some(scaleFactor), Some(targetRateBytesPerSec), None) =>
+            streamConfig.scalingPolicy(ScalingPolicy.byDataRate(targetRateBytesPerSec.toInt/1024, scaleFactor.toInt, minSegments.toInt))
+          case (Some(scaleFactor), None, Some(targetRateEventsPerSec)) =>
+            streamConfig.scalingPolicy(ScalingPolicy.byEventRate(targetRateEventsPerSec.toInt, scaleFactor.toInt, minSegments.toInt))
+          case (None, None, None) =>
+            streamConfig.scalingPolicy(ScalingPolicy.fixed(minSegments.toInt))
+        }
+      case (None, None, None, None) => streamConfig
+    }
+
+    log.info("streamConfig is {}", streamConfig)
+
+
+    return streamConfig.build()
+  }
 
   def getPravegaStreamCut(
                            params: Map[String, String],
