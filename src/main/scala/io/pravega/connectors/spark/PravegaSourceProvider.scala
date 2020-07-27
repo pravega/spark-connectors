@@ -12,6 +12,7 @@ package io.pravega.connectors.spark
 import java.net.URI
 import java.util.{Locale, Optional}
 
+import com.sun.tools.javac.tree.TreeInfo.args
 import io.pravega.client.ClientConfig
 import io.pravega.client.admin.StreamManager
 import io.pravega.client.stream.{RetentionPolicy, ScalingPolicy, StreamConfiguration, StreamCut}
@@ -31,6 +32,7 @@ import resource.managed
 
 import scala.collection.JavaConverters._
 import java.time.Duration
+import scala.util.{Failure, Success, Try}
 
 object MetadataTableName extends Enumeration {
   type MetadataTableName = Value
@@ -315,6 +317,16 @@ class PravegaSourceProvider extends DataSourceV2
       throw new IllegalArgumentException(s"Cannot have multiple retention policy options")
     }
 
+
+    if (caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_NUM_SEGMENTS_OPTION_KEY)) {
+      if(caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_NUM_SEGMENTS_OPTION_KEY) == Integer.parseInt(PravegaSourceProvider.DEFAULT_NUM_SEGMENTS_OPTION_KEY))
+      try {
+        Integer.parseInt(PravegaSourceProvider.DEFAULT_NUM_SEGMENTS_OPTION_KEY)
+        return true
+      } catch {
+        return false
+      }
+    }
   }
 
   private def validateBatchOptions(caseInsensitiveParams: Map[String, String]): Unit = {
