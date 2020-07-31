@@ -14,6 +14,18 @@ class PravegaSourceProviderTest extends FunSuite {
     assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getMinNumSegments == 3)
   }
 
+  test("set retention policy by duration") {
+    val map = Map("default_retention_duration_milliseconds" -> "1000")
+
+    print(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType)
+  }
+
+  test("set retention policy by size in bytes") {
+    val map = Map("default_retention_size_bytes" -> "5000")
+
+    print(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType)
+  }
+
   test("create KBS stream") {
     val map = Map("default_num_segments" -> "3"
       , "default_scale_factor" -> "2"
@@ -40,4 +52,5 @@ class PravegaSourceProviderTest extends FunSuite {
     val map = Map[String, String]()
     assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType.name() == "FIXED_NUM_SEGMENTS")
   }
+
 }
