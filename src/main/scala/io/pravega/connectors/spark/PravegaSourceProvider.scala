@@ -303,6 +303,11 @@ class PravegaSourceProvider extends DataSourceV2
   private def validateStreamOptions(caseInsensitiveParams: Map[String, String]): Unit = {
     // TODO: validate options
     validateGeneralOptions(caseInsensitiveParams)
+
+    if(caseInsensitiveParams.exists(_._1 == PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_BYTES_PER_SEC_OPTION_KEY) &&
+       caseInsensitiveParams.exists(_._1 == PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY)) {
+      throw new IllegalArgumentException(s"Cannot set multiple options for scaling")
+    }
   }
 
   private def validateBatchOptions(caseInsensitiveParams: Map[String, String]): Unit = {
@@ -386,7 +391,7 @@ object PravegaSourceProvider extends Logging {
           case (None, None, None) =>
             streamConfig.scalingPolicy(ScalingPolicy.fixed(minSegments.toInt))
         }
-      case (None, None, None, None) => streamConfig
+      case default => streamConfig
     }
 
     log.info("streamConfig is {}", streamConfig)

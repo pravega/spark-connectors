@@ -19,14 +19,6 @@ class PravegaSourceProviderTest extends FunSuite {
       , "default_segment_target_rate_bytes_per_sec" -> "10000")
     assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType.name() == "BY_RATE_IN_KBYTES_PER_SEC")
   }
-//
-//  test("pass in KBS and events per sec parameters") {
-//    val map = Map("default_num_segments" -> "3"
-//      , "default_scale_factor" -> "2"
-//      , "default_segment_target_rate_bytes_per_sec" -> "10000"
-//      , "default_segment_target_rate_events_per_sec" -> "20")
-//    print(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType)
-//  }
 
   test("Create events per sec stream") {
     val map = Map("default_num_segments" -> "3"
