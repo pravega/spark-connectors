@@ -313,6 +313,12 @@ class PravegaSourceProvider extends DataSourceV2
        caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY)) {
       throw new IllegalArgumentException(s"Cannot set multiple options for scaling")
     }
+
+    if(caseInsensitiveParams.exists(_._1 == PravegaSourceProvider.DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY) &&
+    caseInsensitiveParams.exists(_._1 == PravegaSourceProvider.DEFAULT_RETENTION_SIZE_BYTES_OPTION_KEY)) {
+      throw new IllegalArgumentException(s"Cannot have multiple retention policy options")
+    }
+
   }
 
   private def validateBatchOptions(caseInsensitiveParams: Map[String, String]): Unit = {
@@ -406,10 +412,10 @@ object PravegaSourceProvider extends Logging {
     // set retention policy
     streamConfig = (retentionDurationMilliseconds, retentionSizeBytes) match {
       case (Some(retentionDurationMilliseconds), None) =>
-        streamConfig.retentionPolicy(RetentionPolicy.byTime(Duration.of(retentionDurationMilliseconds.toLong, ChronoUnit.MILLIS)))
+        streamConfig.retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(retentionDurationMilliseconds.toLong)))
       case (None, Some(retentionSizeBytes)) =>
         streamConfig.retentionPolicy(RetentionPolicy.bySizeBytes(retentionSizeBytes.toLong))
-      case (None, None) =>
+      case default =>
         streamConfig
     }
 
