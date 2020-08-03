@@ -326,8 +326,6 @@ class PravegaSourceProvider extends DataSourceV2
       .build()
   }
 
-  // call buildstreamconfig
-  // expose for testing
   private def createStreams(caseInsensitiveParams: Map[String, String]): Unit = {
     val clientConfig = buildClientConfig(caseInsensitiveParams)
     for (streamManager <- managed(StreamManager.create(clientConfig))) {
@@ -371,8 +369,7 @@ object PravegaSourceProvider extends Logging {
   private[spark] val EVENT_ATTRIBUTE_NAME = "event"
 
 
-  //TODO: new method, return stream-config
-  def buildStreamConfig(caseInsensitiveParams: Map[String, String]): StreamConfiguration = { // take createInsensitiveParams, and return stream config object, uildunit test for this method
+  def buildStreamConfig(caseInsensitiveParams: Map[String, String]): StreamConfiguration = {
     var streamConfig = StreamConfiguration.builder
     val minSegments = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_NUM_SEGMENTS_OPTION_KEY)
     val scaleFactor = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SCALE_FACTOR_OPTION_KEY)

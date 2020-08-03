@@ -1,5 +1,6 @@
 package io.pravega.connectors.spark
 
+import io.pravega.client.stream.ScalingPolicy.ScalingPolicyBuilder
 import org.scalatest.FunSuite
 
 class PravegaSourceProviderTest extends FunSuite {
@@ -9,25 +10,33 @@ class PravegaSourceProviderTest extends FunSuite {
   test("create fixed rate stream") {
     val map = Map("default_num_segments" -> "3")
 
-    print(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType)
+    assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType.name() == "FIXED_NUM_SEGMENTS")
   }
 
   test("create KBS stream") {
     val map = Map("default_num_segments" -> "3"
       , "default_scale_factor" -> "2"
       , "default_segment_target_rate_bytes_per_sec" -> "10000")
-    print(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType)
+    assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType.name() == "BY_RATE_IN_KBYTES_PER_SEC")
   }
+//
+//  test("pass in KBS and events per sec parameters") {
+//    val map = Map("default_num_segments" -> "3"
+//      , "default_scale_factor" -> "2"
+//      , "default_segment_target_rate_bytes_per_sec" -> "10000"
+//      , "default_segment_target_rate_events_per_sec" -> "20")
+//    print(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType)
+//  }
 
   test("Create events per sec stream") {
     val map = Map("default_num_segments" -> "3"
       , "default_scale_factor" -> "2"
       , "default_segment_target_rate_events_per_sec" -> "20")
-    print(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType)
+    assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType.name() == "BY_RATE_IN_EVENTS_PER_SEC")
   }
 
   test("test empty input to stream config builder") {
     val map = Map[String, String]()
-    print(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType)
+    assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType.name() == "FIXED_NUM_SEGMENTS")
   }
 }
