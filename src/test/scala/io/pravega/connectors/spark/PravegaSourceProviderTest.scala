@@ -11,13 +11,18 @@ class PravegaSourceProviderTest extends FunSuite {
     val map = Map("default_num_segments" -> "3")
 
     assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType.name() == "FIXED_NUM_SEGMENTS")
+    assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getMinNumSegments == 3)
   }
 
   test("create KBS stream") {
     val map = Map("default_num_segments" -> "3"
       , "default_scale_factor" -> "2"
-      , "default_segment_target_rate_bytes_per_sec" -> "10000")
+      , "default_segment_target_rate_bytes_per_sec" -> "1024")
     assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType.name() == "BY_RATE_IN_KBYTES_PER_SEC")
+    assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getMinNumSegments == 3)
+    assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleFactor == 2)
+    assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getTargetRate == 1)
+
   }
 
   test("Create events per sec stream") {
@@ -25,6 +30,10 @@ class PravegaSourceProviderTest extends FunSuite {
       , "default_scale_factor" -> "2"
       , "default_segment_target_rate_events_per_sec" -> "20")
     assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType.name() == "BY_RATE_IN_EVENTS_PER_SEC")
+    assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getMinNumSegments == 3)
+    assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleFactor == 2)
+    assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getTargetRate == 20)
+
   }
 
   test("test empty input to stream config builder") {

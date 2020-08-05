@@ -304,8 +304,8 @@ class PravegaSourceProvider extends DataSourceV2
     // TODO: validate options
     validateGeneralOptions(caseInsensitiveParams)
 
-    if(caseInsensitiveParams.exists(_._1 == PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_BYTES_PER_SEC_OPTION_KEY) &&
-       caseInsensitiveParams.exists(_._1 == PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY)) {
+    if(caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_BYTES_PER_SEC_OPTION_KEY) &&
+       caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY)) {
       throw new IllegalArgumentException(s"Cannot set multiple options for scaling")
     }
   }
@@ -388,10 +388,10 @@ object PravegaSourceProvider extends Logging {
             streamConfig.scalingPolicy(ScalingPolicy.byDataRate(targetRateBytesPerSec.toInt/1024, scaleFactor.toInt, minSegments.toInt))
           case (Some(scaleFactor), None, Some(targetRateEventsPerSec)) =>
             streamConfig.scalingPolicy(ScalingPolicy.byEventRate(targetRateEventsPerSec.toInt, scaleFactor.toInt, minSegments.toInt))
-          case (None, None, None) =>
+          case _ =>
             streamConfig.scalingPolicy(ScalingPolicy.fixed(minSegments.toInt))
         }
-      case default => streamConfig
+      case _ => streamConfig
     }
 
     log.info("streamConfig is {}", streamConfig)
