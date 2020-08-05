@@ -31,10 +31,6 @@ import resource.managed
 
 import scala.collection.JavaConverters._
 import java.time.Duration
-import java.time.temporal.ChronoUnit
-import java.util.concurrent.TimeUnit
-
-import scala.concurrent.duration.MILLISECONDS
 
 object MetadataTableName extends Enumeration {
   type MetadataTableName = Value
@@ -314,8 +310,8 @@ class PravegaSourceProvider extends DataSourceV2
       throw new IllegalArgumentException(s"Cannot set multiple options for scaling")
     }
 
-    if(caseInsensitiveParams.exists(_._1 == PravegaSourceProvider.DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY) &&
-    caseInsensitiveParams.exists(_._1 == PravegaSourceProvider.DEFAULT_RETENTION_SIZE_BYTES_OPTION_KEY)) {
+    if(caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY) &&
+    caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_RETENTION_SIZE_BYTES_OPTION_KEY)) {
       throw new IllegalArgumentException(s"Cannot have multiple retention policy options")
     }
 
@@ -415,7 +411,7 @@ object PravegaSourceProvider extends Logging {
         streamConfig.retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(retentionDurationMilliseconds.toLong)))
       case (None, Some(retentionSizeBytes)) =>
         streamConfig.retentionPolicy(RetentionPolicy.bySizeBytes(retentionSizeBytes.toLong))
-      case default =>
+      case _ =>
         streamConfig
     }
 
