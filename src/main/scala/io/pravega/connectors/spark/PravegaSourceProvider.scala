@@ -14,7 +14,7 @@ import java.util.{Locale, Optional}
 
 import io.pravega.client.ClientConfig
 import io.pravega.client.admin.StreamManager
-import io.pravega.client.stream.{ScalingPolicy, StreamConfiguration, StreamCut}
+import io.pravega.client.stream.{RetentionPolicy, ScalingPolicy, StreamConfiguration, StreamCut}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
@@ -30,6 +30,7 @@ import org.apache.spark.unsafe.types.UTF8String
 import resource.managed
 
 import scala.collection.JavaConverters._
+import java.time.Duration
 
 object MetadataTableName extends Enumeration {
   type MetadataTableName = Value
@@ -308,6 +309,12 @@ class PravegaSourceProvider extends DataSourceV2
        caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY)) {
       throw new IllegalArgumentException(s"Cannot set multiple options for scaling")
     }
+
+    if(caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY) &&
+    caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_RETENTION_SIZE_BYTES_OPTION_KEY)) {
+      throw new IllegalArgumentException(s"Cannot have multiple retention policy options")
+    }
+
   }
 
   private def validateBatchOptions(caseInsensitiveParams: Map[String, String]): Unit = {
@@ -365,7 +372,8 @@ object PravegaSourceProvider extends Logging {
   private[spark] val DEFAULT_SCALE_FACTOR_OPTION_KEY = "default_scale_factor"
   private[spark] val DEFAULT_SEGMENT_TARGET_RATE_BYTES_PER_SEC_OPTION_KEY = "default_segment_target_rate_bytes_per_sec"
   private[spark] val DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY = "default_segment_target_rate_events_per_sec"
-
+  private[spark] val DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY = "default_retention_duration_milliseconds"
+  private[spark] val DEFAULT_RETENTION_SIZE_BYTES_OPTION_KEY = "default_retention_size_bytes"
 
   private[spark] val STREAM_CUT_EARLIEST = "earliest"
   private[spark] val STREAM_CUT_LATEST = "latest"
@@ -380,7 +388,10 @@ object PravegaSourceProvider extends Logging {
     val scaleFactor = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SCALE_FACTOR_OPTION_KEY)
     val targetRateBytesPerSec = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_BYTES_PER_SEC_OPTION_KEY)
     val targetRateEventsPerSec = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY)
+    val retentionDurationMilliseconds = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY)
+    val retentionSizeBytes = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_RETENTION_SIZE_BYTES_OPTION_KEY)
 
+    // set scaling policy
     streamConfig = (minSegments, scaleFactor, targetRateBytesPerSec, targetRateEventsPerSec) match {
       case (Some(minSegments), scaleFactor, targetRateKiloBytesPerSec, targetRateEventsPerSec) =>
         (scaleFactor, targetRateKiloBytesPerSec, targetRateEventsPerSec) match {
@@ -392,6 +403,16 @@ object PravegaSourceProvider extends Logging {
             streamConfig.scalingPolicy(ScalingPolicy.fixed(minSegments.toInt))
         }
       case _ => streamConfig
+    }
+
+    // set retention policy
+    streamConfig = (retentionDurationMilliseconds, retentionSizeBytes) match {
+      case (Some(retentionDurationMilliseconds), None) =>
+        streamConfig.retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(retentionDurationMilliseconds.toLong)))
+      case (None, Some(retentionSizeBytes)) =>
+        streamConfig.retentionPolicy(RetentionPolicy.bySizeBytes(retentionSizeBytes.toLong))
+      case _ =>
+        streamConfig
     }
 
     log.info("streamConfig is {}", streamConfig)

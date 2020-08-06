@@ -1,12 +1,10 @@
 package io.pravega.connectors.spark
 
-import io.pravega.client.stream.ScalingPolicy.ScalingPolicyBuilder
 import org.scalatest.FunSuite
 
 class PravegaSourceProviderTest extends FunSuite {
 
-  // tests: set scaling as fixed, events, bytes per sec
-
+  // test scaling policy
   test("create fixed rate stream") {
     val map = Map("default_num_segments" -> "3")
 
@@ -39,5 +37,23 @@ class PravegaSourceProviderTest extends FunSuite {
   test("test empty input to stream config builder") {
     val map = Map[String, String]()
     assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType.name() == "FIXED_NUM_SEGMENTS")
+  }
+
+  // test retention policy
+  test("set retention policy by duration") {
+    val map = Map("default_retention_duration_milliseconds" -> "1000")
+
+    assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType.name() == "FIXED_NUM_SEGMENTS")
+    assert(PravegaSourceProvider.buildStreamConfig(map).getRetentionPolicy.getRetentionType.name() == "TIME")
+    assert(PravegaSourceProvider.buildStreamConfig(map).getRetentionPolicy.getRetentionParam == 1000)
+  }
+
+  test("set retention policy by size in bytes") {
+    val map = Map("default_retention_size_bytes" -> "5000")
+
+    assert(PravegaSourceProvider.buildStreamConfig(map).getScalingPolicy.getScaleType.name() == "FIXED_NUM_SEGMENTS")
+    assert(PravegaSourceProvider.buildStreamConfig(map).getRetentionPolicy.getRetentionType.name() == "SIZE")
+    assert(PravegaSourceProvider.buildStreamConfig(map).getRetentionPolicy.getRetentionParam == 5000)
+
   }
 }
