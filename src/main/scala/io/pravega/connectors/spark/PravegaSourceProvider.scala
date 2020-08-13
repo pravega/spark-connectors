@@ -1,12 +1,12 @@
 /**
-  * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
-  *
-  * Licensed under the Apache License, Version 2.0 (the "License");
-  * you may not use this file except in compliance with the License.
-  * You may obtain a copy of the License at
-  *
-  * http://www.apache.org/licenses/LICENSE-2.0
-  */
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.connectors.spark
 
 import java.net.URI
@@ -302,8 +302,7 @@ class PravegaSourceProvider extends DataSourceV2
       schema))
   }
 
-  private def validateStreamOptions(caseInsensitiveParams: Map[String, String]): Unit = {
-    // TODO: validate options
+  def validateStreamOptions(caseInsensitiveParams: Map[String, String]): Unit = {
     validateGeneralOptions(caseInsensitiveParams)
 
     if (caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_BYTES_PER_SEC_OPTION_KEY) &&
@@ -317,32 +316,32 @@ class PravegaSourceProvider extends DataSourceV2
     }
 
     val numSegments = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_NUM_SEGMENTS_OPTION_KEY)
-    if (numSegments.isDefined && !Try(numSegments.get.toInt).isSuccess && numSegments.get.toInt < 1) {
+    if (numSegments.isDefined && (Try(numSegments.get.toInt).isFailure || numSegments.get.toInt < 1)) {
       throw new IllegalArgumentException(s"Number of segments needs to be integer and should be at least one")
     }
 
     val scaleFactor = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SCALE_FACTOR_OPTION_KEY)
-    if (scaleFactor.isDefined && !Try(scaleFactor.get.toInt).isSuccess && scaleFactor.get.toInt < 2) {
+    if (scaleFactor.isDefined && (Try(scaleFactor.get.toInt).isFailure || scaleFactor.get.toInt < 2)) {
       throw new IllegalArgumentException(s"Scale factor needs to be an integer greater than 1")
     }
 
     val targetRateBytesPerSec = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_BYTES_PER_SEC_OPTION_KEY)
-    if (targetRateBytesPerSec.isDefined && !Try(targetRateBytesPerSec.get.toInt).isSuccess && targetRateBytesPerSec.get.toInt < 1024) {
+    if (targetRateBytesPerSec.isDefined && (Try(targetRateBytesPerSec.get.toInt).isFailure || targetRateBytesPerSec.get.toInt < 1024)) {
       throw new IllegalArgumentException(s"Target rate should an integer and should at least be 1024 bytes")
     }
 
     val targetRateEventsPerSec = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY)
-    if (targetRateEventsPerSec.isDefined && !Try(targetRateEventsPerSec.get.toInt).isSuccess && targetRateEventsPerSec.get.toInt < 1) {
+    if (targetRateEventsPerSec.isDefined && (Try(targetRateEventsPerSec.get.toInt).isFailure || targetRateEventsPerSec.get.toInt < 1)) {
       throw new IllegalArgumentException(s"Target rate should be an integer amd should be at least one event per second")
     }
 
     val retentionBytes = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_RETENTION_SIZE_BYTES_OPTION_KEY)
-    if (retentionBytes.isDefined && !Try(retentionBytes.get.toInt).isSuccess && retentionBytes.get.toInt < 0) {
+    if (retentionBytes.isDefined && (Try(retentionBytes.get.toInt).isFailure || retentionBytes.get.toInt < 0)) {
       throw new IllegalArgumentException(s"Retention size should be an integer more than or equal to zero bytes")
     }
 
     val retentionMilliseconds = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY)
-    if (retentionMilliseconds.isDefined && !Try(retentionMilliseconds.get.toInt).isSuccess && retentionMilliseconds.get.toInt < 0) {
+    if (retentionMilliseconds.isDefined && (Try(retentionMilliseconds.get.toInt).isFailure || retentionMilliseconds.get.toInt < 0)) {
       throw new IllegalArgumentException(s"Retention time should be an integer morethan or equal to zero milliseconds")
     }
   }
