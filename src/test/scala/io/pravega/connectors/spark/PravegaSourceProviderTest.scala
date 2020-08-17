@@ -66,4 +66,30 @@ class PravegaSourceProviderTest extends FunSuite {
     assert(PravegaSourceProvider.buildStreamConfig(map).getRetentionPolicy.getRetentionParam == 5000)
 
   }
+
+  test("validate number of segments for stream options with negative input") {
+    val map = Map("default_num_segments"-> "-1", "scope" -> "idk", "stream" -> "idk")
+
+    val pravegaSourceProvider = new PravegaSourceProvider()
+    val thrown = intercept[IllegalArgumentException] {
+      pravegaSourceProvider.validateStreamOptions(map)
+    }
+    assert(thrown.getMessage === "Number of segments needs to be integer and should be at least one")
+  }
+
+  test("validate number of segments for stream options with string input") {
+    val map = Map("default_num_segments"-> "one", "scope" -> "idk", "stream" -> "idk")
+
+    val pravegaSourceProvider = new PravegaSourceProvider()
+    val thrown = intercept[IllegalArgumentException] {
+      pravegaSourceProvider.validateStreamOptions(map)
+    }
+    assert(thrown.getMessage === "Number of segments needs to be integer and should be at least one")
+  }
+
+  test("validate number of segments for stream options with None input") {
+    val map = Map("scope" -> "idk", "stream" -> "idk")
+    val pravegaSourceProvider = new PravegaSourceProvider()
+    pravegaSourceProvider.validateStreamOptions(map)
+  }
 }
