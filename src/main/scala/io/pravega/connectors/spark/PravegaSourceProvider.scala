@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,11 +10,12 @@
 package io.pravega.connectors.spark
 
 import java.net.URI
+import java.time.Duration
 import java.util.{Locale, Optional}
 
 import io.pravega.client.ClientConfig
 import io.pravega.client.admin.StreamManager
-import io.pravega.client.stream.{ScalingPolicy, StreamConfiguration, StreamCut}
+import io.pravega.client.stream.{RetentionPolicy, ScalingPolicy, StreamConfiguration, StreamCut}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
@@ -30,6 +31,7 @@ import org.apache.spark.unsafe.types.UTF8String
 import resource.managed
 
 import scala.collection.JavaConverters._
+import scala.util.Try
 
 object MetadataTableName extends Enumeration {
   type MetadataTableName = Value
@@ -46,8 +48,8 @@ class PravegaSourceProvider extends DataSourceV2
   with Logging {
 
   private val DEFAULT_CONTROLLER = "tcp://localhost:9090"
-  private val DEFAULT_TRANSACTION_TIMEOUT_MS: Long = 30*1000
-  private val DEFAULT_BATCH_TRANSACTION_TIMEOUT_MS: Long = 2*60*1000   // 2 minutes (maximum allowed by default server)
+  private val DEFAULT_TRANSACTION_TIMEOUT_MS: Long = 30 * 1000
+  private val DEFAULT_BATCH_TRANSACTION_TIMEOUT_MS: Long = 2 * 60 * 1000 // 2 minutes (maximum allowed by default server)
   private val DEFAULT_TRANSACTION_STATUS_POLL_INTERVAL_MS: Long = 50
 
   /** String that represents the format that this data source provider uses. */
@@ -175,7 +177,7 @@ class PravegaSourceProvider extends DataSourceV2
             UTF8String.fromString(streamInfo.getTailStreamCut.asText())
           ).toArray[Any])
           MemoryDataSourceReader(schema, Seq(row))
-          }
+        }
         case MetadataTableName.Streams => {
           throw new NotImplementedError()
           // TODO: Below disabled because it requires Pravega 0.5+.
@@ -247,12 +249,12 @@ class PravegaSourceProvider extends DataSourceV2
     *
     * @param writeUUID A unique string for the writing job. It's possible that there are many writing
     *                  jobs running at the same time, and the returned { @link DataSourceWriter} can
-    *                                                                          use this job id to distinguish itself from other jobs.
-    * @param schema the schema of the data to be written.
-    * @param mode   the save mode which determines what to do when the data are already in this data
-    *               source, please refer to { @link SaveMode} for more details.
-    * @param options the options for the returned data source writer, which is an immutable
-    *                case-insensitive string-to-string map.
+    *                  use this job id to distinguish itself from other jobs.
+    * @param schema    the schema of the data to be written.
+    * @param mode      the save mode which determines what to do when the data are already in this data
+    *                  source, please refer to { @link SaveMode} for more details.
+    * @param options   the options for the returned data source writer, which is an immutable
+    *                  case-insensitive string-to-string map.
     * @return a writer to append data to this data source
     */
   override def createWriter(
@@ -300,9 +302,48 @@ class PravegaSourceProvider extends DataSourceV2
       schema))
   }
 
-  private def validateStreamOptions(caseInsensitiveParams: Map[String, String]): Unit = {
-    // TODO: validate options
+  def validateStreamOptions(caseInsensitiveParams: Map[String, String]): Unit = {
     validateGeneralOptions(caseInsensitiveParams)
+
+    if (caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_BYTES_PER_SEC_OPTION_KEY) &&
+      caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY)) {
+      throw new IllegalArgumentException(s"Cannot set multiple options for scaling")
+    }
+
+    if (caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY) &&
+      caseInsensitiveParams.contains(PravegaSourceProvider.DEFAULT_RETENTION_SIZE_BYTES_OPTION_KEY)) {
+      throw new IllegalArgumentException(s"Cannot have multiple retention policy options")
+    }
+
+    val numSegments = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_NUM_SEGMENTS_OPTION_KEY)
+    if (numSegments.isDefined && (Try(numSegments.get.toInt).isFailure || numSegments.get.toInt < 1)) {
+      throw new IllegalArgumentException(s"Number of segments needs to be integer and should be at least one")
+    }
+
+    val scaleFactor = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SCALE_FACTOR_OPTION_KEY)
+    if (scaleFactor.isDefined && (Try(scaleFactor.get.toInt).isFailure || scaleFactor.get.toInt < 2)) {
+      throw new IllegalArgumentException(s"Scale factor needs to be an integer greater than 1")
+    }
+
+    val targetRateBytesPerSec = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_BYTES_PER_SEC_OPTION_KEY)
+    if (targetRateBytesPerSec.isDefined && (Try(targetRateBytesPerSec.get.toInt).isFailure || targetRateBytesPerSec.get.toInt < 1024)) {
+      throw new IllegalArgumentException(s"Target rate should an integer and should at least be 1024 bytes")
+    }
+
+    val targetRateEventsPerSec = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY)
+    if (targetRateEventsPerSec.isDefined && (Try(targetRateEventsPerSec.get.toInt).isFailure || targetRateEventsPerSec.get.toInt < 1)) {
+      throw new IllegalArgumentException(s"Target rate should be an integer amd should be at least one event per second")
+    }
+
+    val retentionBytes = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_RETENTION_SIZE_BYTES_OPTION_KEY)
+    if (retentionBytes.isDefined && (Try(retentionBytes.get.toInt).isFailure || retentionBytes.get.toInt < 0)) {
+      throw new IllegalArgumentException(s"Retention size should be an integer more than or equal to zero bytes")
+    }
+
+    val retentionMilliseconds = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY)
+    if (retentionMilliseconds.isDefined && (Try(retentionMilliseconds.get.toInt).isFailure || retentionMilliseconds.get.toInt < 0)) {
+      throw new IllegalArgumentException(s"Retention time should be an integer morethan or equal to zero milliseconds")
+    }
   }
 
   private def validateBatchOptions(caseInsensitiveParams: Map[String, String]): Unit = {
@@ -336,12 +377,8 @@ class PravegaSourceProvider extends DataSourceV2
       val streamName = caseInsensitiveParams(PravegaSourceProvider.STREAM_OPTION_KEY)
       val allowCreateStream = caseInsensitiveParams.getOrElse(PravegaSourceProvider.ALLOW_CREATE_STREAM_OPTION_KEY, "true").toBoolean
       if (allowCreateStream) {
-        var streamConfig = StreamConfiguration.builder
-        streamConfig = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_NUM_SEGMENTS_OPTION_KEY) match {
-          case Some(n) => streamConfig.scalingPolicy(ScalingPolicy.fixed(n.toInt))
-          case None => streamConfig
-        }
-        streamManager.createStream(scopeName, streamName, streamConfig.build())
+        val streamConfig = PravegaSourceProvider.buildStreamConfig(caseInsensitiveParams)
+        streamManager.createStream(scopeName, streamName, streamConfig)
       }
     }
   }
@@ -361,12 +398,57 @@ object PravegaSourceProvider extends Logging {
   private[spark] val READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY = "read_after_write_consistency"
   private[spark] val TRANSACTION_STATUS_POLL_INTERVAL_MS_OPTION_KEY = "transaction_status_poll_interval_ms"
   private[spark] val METADATA_OPTION_KEY = "metadata"
+  private[spark] val DEFAULT_SCALE_FACTOR_OPTION_KEY = "default_scale_factor"
+  private[spark] val DEFAULT_SEGMENT_TARGET_RATE_BYTES_PER_SEC_OPTION_KEY = "default_segment_target_rate_bytes_per_sec"
+  private[spark] val DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY = "default_segment_target_rate_events_per_sec"
+  private[spark] val DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY = "default_retention_duration_milliseconds"
+  private[spark] val DEFAULT_RETENTION_SIZE_BYTES_OPTION_KEY = "default_retention_size_bytes"
 
   private[spark] val STREAM_CUT_EARLIEST = "earliest"
   private[spark] val STREAM_CUT_LATEST = "latest"
   private[spark] val STREAM_CUT_UNBOUNDED = "unbounded"
   private[spark] val ROUTING_KEY_ATTRIBUTE_NAME = "routing_key"
   private[spark] val EVENT_ATTRIBUTE_NAME = "event"
+
+
+  def buildStreamConfig(caseInsensitiveParams: Map[String, String]): StreamConfiguration = {
+    var streamConfig = StreamConfiguration.builder
+    val minSegments = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_NUM_SEGMENTS_OPTION_KEY)
+    val scaleFactor = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SCALE_FACTOR_OPTION_KEY)
+    val targetRateBytesPerSec = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_BYTES_PER_SEC_OPTION_KEY)
+    val targetRateEventsPerSec = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY)
+    val retentionDurationMilliseconds = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY)
+    val retentionSizeBytes = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_RETENTION_SIZE_BYTES_OPTION_KEY)
+
+    // set scaling policy
+    streamConfig = (minSegments, scaleFactor, targetRateBytesPerSec, targetRateEventsPerSec) match {
+      case (Some(minSegments), scaleFactor, targetRateKiloBytesPerSec, targetRateEventsPerSec) =>
+        (scaleFactor, targetRateKiloBytesPerSec, targetRateEventsPerSec) match {
+          case (Some(scaleFactor), Some(targetRateBytesPerSec), None) =>
+            streamConfig.scalingPolicy(ScalingPolicy.byDataRate(targetRateBytesPerSec.toInt / 1024, scaleFactor.toInt, minSegments.toInt))
+          case (Some(scaleFactor), None, Some(targetRateEventsPerSec)) =>
+            streamConfig.scalingPolicy(ScalingPolicy.byEventRate(targetRateEventsPerSec.toInt, scaleFactor.toInt, minSegments.toInt))
+          case _ =>
+            streamConfig.scalingPolicy(ScalingPolicy.fixed(minSegments.toInt))
+        }
+      case _ => streamConfig
+    }
+
+    // set retention policy
+    streamConfig = (retentionDurationMilliseconds, retentionSizeBytes) match {
+      case (Some(retentionDurationMilliseconds), None) =>
+        streamConfig.retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(retentionDurationMilliseconds.toLong)))
+      case (None, Some(retentionSizeBytes)) =>
+        streamConfig.retentionPolicy(RetentionPolicy.bySizeBytes(retentionSizeBytes.toLong))
+      case _ =>
+        streamConfig
+    }
+
+    log.info("streamConfig is {}", streamConfig)
+
+
+    return streamConfig.build()
+  }
 
   def getPravegaStreamCut(
                            params: Map[String, String],
