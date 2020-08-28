@@ -18,6 +18,7 @@ import io.pravega.client.admin.StreamManager
 import io.pravega.client.stream.{RetentionPolicy, ScalingPolicy, StreamConfiguration, StreamCut}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.sources.v2._
@@ -30,6 +31,7 @@ import org.apache.spark.sql.types.{StructField, _}
 import org.apache.spark.unsafe.types.UTF8String
 import resource.managed
 
+import scala.collection.JavaConversions.asScalaIterator
 import scala.collection.JavaConverters._
 import scala.util.Try
 
@@ -179,9 +181,23 @@ class PravegaSourceProvider extends DataSourceV2
           MemoryDataSourceReader(schema, Seq(row))
         }
         case MetadataTableName.Streams => {
-          throw new NotImplementedError()
-          // TODO: Below disabled because it requires Pravega 0.5+.
-          // val streams = streamManager.listStreams(scopeName)
+          val streams = streamManager.listStreams(scopeName)
+          val schema = StructType(Seq(
+            StructField("scope_name", StringType),
+            StructField("stream_name", StringType)
+          ))
+
+          var rows = Seq[InternalRow]()
+
+          streams.foreach(stream => {
+            rows = rows :+ new GenericInternalRow(
+              Seq(
+                UTF8String.fromString(stream.getScope),
+                UTF8String.fromString(stream.getStreamName)
+              ).toArray[Any])
+          })
+
+          MemoryDataSourceReader(schema, rows)
         }
       }
     }).acquireAndGet(identity)
