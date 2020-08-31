@@ -201,4 +201,48 @@ class PravegaDataSourceSuite extends QueryTest with SharedSQLContext with Praveg
     log.info(s"tailStreamCut=$tailStreamCut")
     assert(tailStreamCut == streamInfo1.getTailStreamCut)
   }
+
+  test("metadata_streams") {
+    val streamName1 = newStreamName()
+    val streamName2 = newStreamName()
+    val streamName3 = newStreamName()
+    val streamSet = Set(streamName1, streamName2, streamName3)
+    val df = Seq("1", "2", "3", "4", "5").toDF(EVENT_ATTRIBUTE_NAME)
+    df.write
+      .format(SOURCE_PROVIDER_NAME)
+      .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+      .option(SCOPE_OPTION_KEY, testUtils.scope)
+      .option(STREAM_OPTION_KEY, streamName1)
+      .option(DEFAULT_NUM_SEGMENTS_OPTION_KEY, "5")
+      .save()
+    df.write
+      .format(SOURCE_PROVIDER_NAME)
+      .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+      .option(SCOPE_OPTION_KEY, testUtils.scope)
+      .option(STREAM_OPTION_KEY, streamName2)
+      .option(DEFAULT_NUM_SEGMENTS_OPTION_KEY, "5")
+      .save()
+    df.write
+      .format(SOURCE_PROVIDER_NAME)
+      .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+      .option(SCOPE_OPTION_KEY, testUtils.scope)
+      .option(STREAM_OPTION_KEY, streamName3)
+      .option(DEFAULT_NUM_SEGMENTS_OPTION_KEY, "5")
+      .save()
+
+    val metadf = spark
+      .read
+      .format(SOURCE_PROVIDER_NAME)
+      .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+      .option(SCOPE_OPTION_KEY, testUtils.scope)
+      .option(STREAM_OPTION_KEY, streamName1)
+      .option(METADATA_OPTION_KEY, MetadataTableName.Streams.toString)
+      .load()
+    metadf.show(truncate = false)
+
+    val metaStreams = metadf.select("stream_name").collect().map(_.getString(0))
+    assert(metaStreams.contains(streamName1))
+    assert(metaStreams.contains(streamName2))
+    assert(metaStreams.contains(streamName3))
+  }
 }
