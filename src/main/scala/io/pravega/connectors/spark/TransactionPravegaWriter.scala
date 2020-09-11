@@ -25,7 +25,7 @@ import org.apache.spark.sql.types.{BinaryType, StringType, StructType}
 import io.pravega.connectors.spark.PravegaSourceProvider._
 import resource.managed
 
-case class PravegaWriterCommitMessage(transactionId: UUID) extends WriterCommitMessage
+case class TransactionPravegaWriterCommitMessage(transactionId: UUID) extends WriterCommitMessage
 
 /**
   * Both a [[StreamWriter]] and a [[DataSourceWriter]] for Pravega writing.
@@ -43,7 +43,7 @@ case class PravegaWriterCommitMessage(transactionId: UUID) extends WriterCommitM
   * @param schema                          The schema of the input data.
   *
   */
-class PravegaWriter(
+class TransactionPravegaWriter(
                      scopeName: String,
                      streamName: String,
                      clientConfig: ClientConfig,
@@ -66,8 +66,8 @@ class PravegaWriter(
         .build)
   }
 
-  override def createWriterFactory(): PravegaWriterFactory =
-    PravegaWriterFactory(scopeName, streamName, clientConfig, transactionTimeoutMs, schema)
+  override def createWriterFactory(): TransactionPravegaWriterFactory =
+    TransactionPravegaWriterFactory(scopeName, streamName, clientConfig, transactionTimeoutMs, schema)
 
   /**
     * To allow allows read-after-write consistency, we want to wait until the transaction transitions to COMMITTED
@@ -96,7 +96,7 @@ class PravegaWriter(
       writer <- managed(createWriter(clientFactory))
     } {
       messages
-        .map(_.asInstanceOf[PravegaWriterCommitMessage])
+        .map(_.asInstanceOf[TransactionPravegaWriterCommitMessage])
         .map(_.transactionId)
         .filter(_ != null)
         .par
@@ -119,7 +119,7 @@ class PravegaWriter(
       // TODO: An exception is thrown by the Pravega 0.4.0 client here for an unknown reason. The transaction will still abort when it times out.
     } {
       messages
-        .map(_.asInstanceOf[PravegaWriterCommitMessage])
+        .map(_.asInstanceOf[TransactionPravegaWriterCommitMessage])
         .map(_.transactionId)
         .filter(_ != null)
         .par
@@ -152,7 +152,7 @@ class PravegaWriter(
   * @param transactionTimeoutTime   The number of milliseconds for transactions to timeout.
   * @param schema                   The schema of the input data.
   */
-case class PravegaWriterFactory(
+case class TransactionPravegaWriterFactory(
                                        scopeName: String,
                                        streamName: String,
                                        clientConfig: ClientConfig,
@@ -164,7 +164,7 @@ case class PravegaWriterFactory(
                                  partitionId: Int,
                                  taskId: Long,
                                  epochId: Long): DataWriter[InternalRow] = {
-    new PravegaDataWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
+    new TransactionPravegaDataWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
   }
 }
 
@@ -175,7 +175,7 @@ case class PravegaWriterFactory(
   * @param transactionTimeoutTime   The number of milliseconds for transactions to timeout.
   * @param inputSchema              The attributes in the input data.
   */
-class PravegaDataWriter(
+class TransactionPravegaDataWriter(
                                scopeName: String,
                                streamName: String,
                                clientConfig: ClientConfig,
@@ -224,14 +224,14 @@ class PravegaDataWriter(
   override def commit(): WriterCommitMessage = {
     try {
       if (transaction == null) {
-        PravegaWriterCommitMessage(null)
+        TransactionPravegaWriterCommitMessage(null)
       } else {
         log.info(s"commit: transaction=${transaction.getTxnId}, flushing")
         transaction.flush()
         log.debug(s"commit: transaction=${transaction.getTxnId}, flushed, sending transaction ID to driver for commit")
         val transactionId = transaction.getTxnId
         transaction = null
-        PravegaWriterCommitMessage(transactionId)
+        TransactionPravegaWriterCommitMessage(transactionId)
       }
     } finally {
       close()

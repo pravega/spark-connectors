@@ -244,15 +244,22 @@ class PravegaSourceProvider extends DataSourceV2
 
     createStreams(caseInsensitiveParams)
 
-    new PravegaWriter(
+//    new TransactionPravegaWriter(
+//      scopeName,
+//      streamName,
+//      clientConfig,
+//      transactionTimeoutMs,
+//      readAfterWriteConsistency,
+//      transactionStatusPollIntervalMs,
+//      schema)
+
+    new NonTransactionPravegaWriter(
       scopeName,
       streamName,
       clientConfig,
       transactionTimeoutMs,
-      readAfterWriteConsistency,
-      transactionStatusPollIntervalMs,
       schema)
-  }
+}
 
   /**
     * Creates an optional {@link DataSourceWriter} to save the data to this data source. Data
@@ -308,7 +315,7 @@ class PravegaSourceProvider extends DataSourceV2
 
     createStreams(caseInsensitiveParams)
 
-    Optional.of(new PravegaWriter(
+    Optional.of(new TransactionPravegaWriter(
       scopeName,
       streamName,
       clientConfig,
