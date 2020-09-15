@@ -183,6 +183,7 @@ class PravegaDataSourceSuite extends QueryTest with SharedSQLContext with Praveg
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
       .option(DEFAULT_NUM_SEGMENTS_OPTION_KEY, "5")
+      .option(EXACTLY_ONCE, true)
       .save()
     val streamInfo1 = testUtils.getStreamInfo(streamName)
 
@@ -214,6 +215,7 @@ class PravegaDataSourceSuite extends QueryTest with SharedSQLContext with Praveg
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName1)
       .option(DEFAULT_NUM_SEGMENTS_OPTION_KEY, "5")
+      .option(EXACTLY_ONCE, true)
       .save()
     df.write
       .format(SOURCE_PROVIDER_NAME)
@@ -221,6 +223,7 @@ class PravegaDataSourceSuite extends QueryTest with SharedSQLContext with Praveg
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName2)
       .option(DEFAULT_NUM_SEGMENTS_OPTION_KEY, "5")
+      .option(EXACTLY_ONCE, true)
       .save()
     df.write
       .format(SOURCE_PROVIDER_NAME)
@@ -228,6 +231,7 @@ class PravegaDataSourceSuite extends QueryTest with SharedSQLContext with Praveg
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName3)
       .option(DEFAULT_NUM_SEGMENTS_OPTION_KEY, "5")
+      .option(EXACTLY_ONCE, true)
       .save()
 
     val metadf = spark

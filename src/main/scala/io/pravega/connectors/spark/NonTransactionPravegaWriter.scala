@@ -35,7 +35,7 @@ case class NonTransactionPravegaWriterCommitMessage(transactionId: UUID) extends
   * It uses Pravega transactions to support exactly-once semantics.
   * Used by both streaming and batch jobs.
   *
-  * @param transactionTimeoutMs            The number of milliseconds for transactions to timeout.
+//  * @param transactionTimeoutMs            The number of milliseconds for transactions to timeout.
   * @param schema                          The schema of the input data.
   *
   */
@@ -43,7 +43,7 @@ class NonTransactionPravegaWriter(
                      scopeName: String,
                      streamName: String,
                      clientConfig: ClientConfig,
-                     transactionTimeoutMs: Long,
+//                     transactionTimeoutMs: Long,
 //                     readAfterWriteConsistency: Boolean,
 //                     executorService: ExecutorService,
 //                     transactionStatusPollIntervalMs: Long,
@@ -59,65 +59,33 @@ class NonTransactionPravegaWriter(
       streamName,
       new ByteBufferSerializer,
       EventWriterConfig.builder
-        .transactionTimeoutTime(transactionTimeoutMs)
         .build)
   }
 
   override def createWriterFactory(): NonTransactionPravegaWriterFactory =
-    NonTransactionPravegaWriterFactory(scopeName, streamName, clientConfig, transactionTimeoutMs, schema)
+    NonTransactionPravegaWriterFactory(scopeName, streamName, clientConfig, schema)
 
-//  /**
-//    * To allow allows read-after-write consistency, we want to wait until the transaction transitions to COMMITTED
-//    * which indicates that readers can view the events.
-//    */
-//  private def waitForCommittedTransaction(transaction: Transaction[ByteBuffer]): Unit = {
-//    if (readAfterWriteConsistency) {
-//      var status: Transaction.Status = transaction.checkStatus
-//      while (status == Transaction.Status.COMMITTING) {
-//        Thread.sleep(transactionStatusPollIntervalMs)
-//        status = transaction.checkStatus
-//      }
-//      if (status != Transaction.Status.COMMITTED) {
-//        // This should never happen.
-//        log.error(s"waitForCommittedTransaction: Transaction ${transaction.getTxnId} changed from COMMITTING to ${status}")
-//        throw new TxnFailedException()
-//      }
-//      log.info(s"waitForCommittedTransaction: transaction=${transaction.getTxnId}, committed")
-//    }
-//  }
-
-  override def abort(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {
-    log.debug(s"abort: BEGIN: epochId=$epochId, messages=${messages.mkString(",")}")
-    for {
-      clientFactory <- managed(createClientFactory)
-      writer <- managed(createWriter(clientFactory))
-      // TODO: An exception is thrown by the Pravega 0.4.0 client here for an unknown reason. The transaction will still abort when it times out.
-    } {
-      writer.close()
-    }
-  }
+  override def abort(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {}
 
   // Used for batch writer.
-//  override def commit(messages: Array[WriterCommitMessage]): Unit = commit(0, messages)
+  override def commit(messages: Array[WriterCommitMessage]): Unit = commit(0, messages)
 
   // Used for batch writer.
-  override def abort(messages: Array[WriterCommitMessage]): Unit = abort(0, messages)
+//  override def abort(messages: Array[WriterCommitMessage]): Unit = abort(0, messages)
 
-  override def commit(epochId: Long, messages: Array[WriterCommitMessage]): Unit = commit(0, messages)
+  override def commit(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {}
 }
 
 /**
   * A [[DataWriterFactory]] for Pravega writing. It will be serialized and sent to executors to
   * generate the per-task data writers.
   *
-  * @param transactionTimeoutTime   The number of milliseconds for transactions to timeout.
   * @param schema                   The schema of the input data.
   */
 case class NonTransactionPravegaWriterFactory(
                                        scopeName: String,
                                        streamName: String,
                                        clientConfig: ClientConfig,
-                                       transactionTimeoutTime: Long,
                                        schema: StructType)
   extends DataWriterFactory[InternalRow] with Logging {
 
@@ -125,7 +93,7 @@ case class NonTransactionPravegaWriterFactory(
                                  partitionId: Int,
                                  taskId: Long,
                                  epochId: Long): DataWriter[InternalRow] = {
-    new NonTransactionPravegaDataWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
+    new NonTransactionPravegaDataWriter(scopeName, streamName, clientConfig, schema)
   }
 }
 
@@ -133,14 +101,12 @@ case class NonTransactionPravegaWriterFactory(
   * A [[DataWriter]] for Pravega writing. One data writer will be created in each partition to
   * process incoming rows.
   *
-  * @param transactionTimeoutTime   The number of milliseconds for transactions to timeout.
   * @param inputSchema              The attributes in the input data.
   */
 class NonTransactionPravegaDataWriter(
                                scopeName: String,
                                streamName: String,
                                clientConfig: ClientConfig,
-                               transactionTimeoutTime: Long,
                                inputSchema: StructType)
   extends DataWriter[InternalRow] with Logging {
 
@@ -154,7 +120,6 @@ class NonTransactionPravegaDataWriter(
     new ByteBufferSerializer,
     EventWriterConfig
       .builder
-      .transactionTimeoutTime(transactionTimeoutTime)
       .build)
 
 //  private var transaction: Transaction[ByteBuffer] = _
