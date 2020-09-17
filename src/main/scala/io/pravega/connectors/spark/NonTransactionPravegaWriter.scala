@@ -143,17 +143,20 @@ class NonTransactionPravegaDataWriter(
       log.debug(s"write: routingKey=${routingKey}, event=${eventToLog}")
       writer.writeEvent(routingKey, ByteBuffer.wrap(event))
     } else {
-      writer.writeEvent(ByteBuffer.wrap(event))
       log.debug(s"write: event=${eventToLog}")
+      writer.writeEvent(ByteBuffer.wrap(event)).get()
     }
+    log.debug(s"write: end")
   }
 
   override def commit(): WriterCommitMessage = {
+    log.debug(s"commit: begin")
     try {
       writer.flush()
       NonTransactionPravegaWriterCommitMessage(null)
     } finally {
       close()
+      log.debug(s"commit: end")
     }
   }
 
@@ -167,8 +170,10 @@ class NonTransactionPravegaDataWriter(
 //        transaction = null
 //      }
 //    } finally {
+    log.debug("abort:BEGIN")
       close()
-//    }
+    log.debug("abort:END")
+    //    }
   }
 
   private def close(): Unit = {
