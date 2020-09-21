@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.function.BiConsumer
 
 import io.pravega.client.stream.impl.ByteBufferSerializer
 import io.pravega.client.stream.{EventStreamWriter, EventWriterConfig, Transaction, TransactionalEventStreamWriter, TxnFailedException}
@@ -144,7 +145,16 @@ class NonTransactionPravegaDataWriter(
       writer.writeEvent(routingKey, ByteBuffer.wrap(event))
     } else {
       log.debug(s"write: event=${eventToLog}")
-      writer.writeEvent(ByteBuffer.wrap(event)).get()
+
+      val f = writer.writeEvent(ByteBuffer.wrap(event))
+      f.whenComplete( new BiConsumer[Void, Throwable] {
+        log.debug(s"Event as complete")
+
+        override def accept(t: Void, u: Throwable): Unit = {
+          if (t != null) f.complete(t)
+          if (u != null) f.completeExceptionally(u)
+        }
+      })
     }
     log.debug(s"write: end")
   }
