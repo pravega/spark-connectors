@@ -152,16 +152,16 @@ class NonTransactionPravegaDataWriter(
     } else {
       log.debug(s"write: event=${eventToLog}")
 
-      val f = (writer.writeEvent(ByteBuffer.wrap(event)))
-//      val f = toScala(writer.writeEvent(ByteBuffer.wrap(event)))
+//      val f = (writer.writeEvent(ByteBuffer.wrap(event)))
+      val f = toScala(writer.writeEvent(ByteBuffer.wrap(event)))
 //      val f = writer.writeEvent(ByteBuffer.wrap(event)).exceptionally(e => {println(e); return null}).toScala
 //      f.exceptionally().toScala
-//      f
-//        .map(println)
-//        .recover { case e =>
-//          e.printStackTrace
-//          "recovered"
-//        }.map(println)
+      f
+        .map(println)
+        .recover { case e =>
+          e.printStackTrace
+          "recovered"
+        }.map(println)
 
 
 //        handle((r, e) => {
@@ -172,23 +172,22 @@ class NonTransactionPravegaDataWriter(
 //        }
 //      })
 //        .onComplete(_ => log.debug(s"Event as complete"))
-//      val foo: Int => Boolean = i => i > 7
-//
-//
-      f.whenComplete( new BiConsumer[Void, Throwable] {
-        log.debug(s"Event as complete")
 
-        override def accept(t: Void, u: Throwable): Unit = {
-          if (t != null) {
-            f.complete(t)
-            log.debug(s"Event as complete")
-          }
-          if (u != null) {
-            f.completeExceptionally(u)
-            log.debug(u.getMessage)
-          }
-        }
-      })
+
+//      f.whenComplete( new BiConsumer[Void, Throwable] {
+//        log.debug(s"Event as complete")
+//
+//        override def accept(t: Void, u: Throwable): Unit = {
+//          if (t != null) {
+//            f.complete(t)
+//            log.debug(s"Event as complete")
+//          }
+//          if (u != null) {
+//            f.completeExceptionally(u)
+//            log.debug(u.getMessage)
+//          }
+//        }
+//      })
     }
     log.debug(s"write: end")
   }
