@@ -28,6 +28,12 @@ import org.apache.spark.sql.types.{BinaryType, StringType, StructType}
 import io.pravega.connectors.spark.PravegaSourceProvider._
 import resource.managed
 
+import scala.compat.java8.FutureConverters._
+import java.util.function._
+
+import scala.compat.java8.FunctionConverters._
+import scala.concurrent.ExecutionContext.Implicits.global
+
 case class NonTransactionPravegaWriterCommitMessage(transactionId: UUID) extends WriterCommitMessage
 
 /**
@@ -146,13 +152,41 @@ class NonTransactionPravegaDataWriter(
     } else {
       log.debug(s"write: event=${eventToLog}")
 
-      val f = writer.writeEvent(ByteBuffer.wrap(event))
+      val f = (writer.writeEvent(ByteBuffer.wrap(event)))
+//      val f = toScala(writer.writeEvent(ByteBuffer.wrap(event)))
+//      val f = writer.writeEvent(ByteBuffer.wrap(event)).exceptionally(e => {println(e); return null}).toScala
+//      f.exceptionally().toScala
+//      f
+//        .map(println)
+//        .recover { case e =>
+//          e.printStackTrace
+//          "recovered"
+//        }.map(println)
+
+
+//        handle((r, e) => {
+//        if (e != null) {
+//          if (e.isInstanceOf[IndexOutOfBoundsException]) throw new IllegalArgumentException
+//          throw e.asInstanceOf[RuntimeException] // this is sketchy, handle it differently, maybe by wrapping it in a RuntimeException
+//
+//        }
+//      })
+//        .onComplete(_ => log.debug(s"Event as complete"))
+//      val foo: Int => Boolean = i => i > 7
+//
+//
       f.whenComplete( new BiConsumer[Void, Throwable] {
         log.debug(s"Event as complete")
 
         override def accept(t: Void, u: Throwable): Unit = {
-          if (t != null) f.complete(t)
-          if (u != null) f.completeExceptionally(u)
+          if (t != null) {
+            f.complete(t)
+            log.debug(s"Event as complete")
+          }
+          if (u != null) {
+            f.completeExceptionally(u)
+            log.debug(u.getMessage)
+          }
         }
       })
     }
