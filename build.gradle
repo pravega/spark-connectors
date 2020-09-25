@@ -81,7 +81,7 @@ dependencies {
     testCompile group: 'junit', name: 'junit', version: junitVersion
     testCompile group: 'io.pravega', name: 'pravega-standalone', version: pravegaVersion
     testCompile group: 'org.scalatest', name: 'scalatest_2.11', version: scalaTestVersion
-    testRuntime group: 'org.pegdown', name: 'pegdown', version: pegDownVersion
+    testRuntimeOnly group: 'org.pegdown', name: 'pegdown', version: pegDownVersion
     testCompile group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion
     testCompile group: 'org.apache.spark', name: 'spark-core_2.11', version: sparkVersion, classifier: 'tests'
     testCompile group: 'org.apache.spark', name: 'spark-catalyst_2.11', version: sparkVersion, classifier: 'tests'
