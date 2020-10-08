@@ -109,8 +109,16 @@ shadowJar {
     zip64 = true
     mergeServiceFiles()
 
-    relocate 'io.netty', 'io.pravega.shaded.io.netty'
-    relocate 'com.google', 'io.pravega.shaded.com.google'
+    // relocate pravega client's dependencies to minimize conflicts
+    relocate "org.apache.commons", "io.pravega.shaded.org.apache.commons"
+    relocate "com.google", "io.pravega.shaded.com.google"
+    relocate "io.grpc", "io.pravega.shaded.io.grpc"
+    relocate "com.squareup.okhttp", "io.pravega.shaded.com.squareup.okhttp"
+    relocate "okio", "io.pravega.shaded.okio"
+    relocate "io.opencensus", "io.pravega.shaded.io.opencensus"
+    relocate "io.netty", "io.pravega.shaded.io.netty"
+    relocate 'META-INF/native/libnetty', 'META-INF/native/libio_pravega_shaded_netty'
+    relocate 'META-INF/native/netty', 'META-INF/native/io_pravega_shaded_netty'
 }
 
 javadoc {
