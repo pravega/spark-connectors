@@ -84,7 +84,7 @@ dependencies {
     testCompile group: 'junit', name: 'junit', version: junitVersion
     testCompile group: 'io.pravega', name: 'pravega-standalone', version: pravegaVersion
     testCompile group: 'org.scalatest', name: 'scalatest_2.11', version: scalaTestVersion
-    testRuntime group: 'org.pegdown', name: 'pegdown', version: pegDownVersion
+    testRuntimeOnly group: 'org.pegdown', name: 'pegdown', version: pegDownVersion
     testCompile group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion
     testCompile group: 'org.apache.spark', name: 'spark-core_2.11', version: sparkVersion, classifier: 'tests'
     testCompile group: 'org.apache.spark', name: 'spark-catalyst_2.11', version: sparkVersion, classifier: 'tests'
@@ -112,8 +112,16 @@ shadowJar {
     zip64 = true
     mergeServiceFiles()
 
-    relocate 'io.netty', 'io.pravega.shaded.io.netty'
-    relocate 'com.google', 'io.pravega.shaded.com.google'
+    // relocate pravega client's dependencies to minimize conflicts
+    relocate "org.apache.commons", "io.pravega.shaded.org.apache.commons"
+    relocate "com.google", "io.pravega.shaded.com.google"
+    relocate "io.grpc", "io.pravega.shaded.io.grpc"
+    relocate "com.squareup.okhttp", "io.pravega.shaded.com.squareup.okhttp"
+    relocate "okio", "io.pravega.shaded.okio"
+    relocate "io.opencensus", "io.pravega.shaded.io.opencensus"
+    relocate "io.netty", "io.pravega.shaded.io.netty"
+    relocate 'META-INF/native/libnetty', 'META-INF/native/libio_pravega_shaded_netty'
+    relocate 'META-INF/native/netty', 'META-INF/native/io_pravega_shaded_netty'
 }
 
 javadoc {
