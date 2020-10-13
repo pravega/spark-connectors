@@ -23,32 +23,25 @@ env:
 
 sudo: required
 
-services:
-  - docker
-
 cache:
   directories:
-  - ".gradle"
-  - "$HOME/.gradle"
-  - "$HOME/.m2"
+    - ".gradle"
+    - "$HOME/.gradle"
+    - "$HOME/.m2"
 
 stages:
   - name: build
   - name: snapshot
-    # master or release branch
-    if: (branch = master OR branch =~ /^r[0-9]\.[0-9][\S]*/) AND NOT (type = pull_request)
+    if: branch = master AND NOT (type = pull_request)
 
 jobs:
   include:
     - stage: build
       script: ./gradlew clean build
-        after_success: bash <(curl -s https://codecov.io/bash) -t 9c42ff48-d98f-4444-af05-cf734aa1dbd0
 
     - stage: snapshot
       script: ./gradlew publishToRepo -PpublishUrl=jcenterSnapshot -PpublishUsername=$BINTRAY_USER -PpublishPassword=$BINTRAY_KEY
 
-
 notifications:
   email:
-  - claudio.fahey@dell.com
-  - thejas.vidyasagar@dell.com
+    - claudio.fahey@dell.com
