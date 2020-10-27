@@ -173,7 +173,6 @@ class NonTransactionPravegaDataWriter(
   private def close(): Unit = {
     log.debug("close: BEGIN")
     try {
-      writer.flush()
       writer.close()
     } catch {
       case e: Throwable => log.warn("close: exception during writer close", e)
