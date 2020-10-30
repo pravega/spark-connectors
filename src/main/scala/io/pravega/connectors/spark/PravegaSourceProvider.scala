@@ -244,15 +244,24 @@ class PravegaSourceProvider extends DataSourceV2
 
     createStreams(caseInsensitiveParams)
 
-    new PravegaWriter(
-      scopeName,
-      streamName,
-      clientConfig,
-      transactionTimeoutMs,
-      readAfterWriteConsistency,
-      transactionStatusPollIntervalMs,
-      schema)
-  }
+    if (caseInsensitiveParams.getOrElse(PravegaSourceProvider.EXACTLY_ONCE, "true").toBoolean) {
+      new TransactionPravegaWriter(
+        scopeName,
+        streamName,
+        clientConfig,
+        transactionTimeoutMs,
+        readAfterWriteConsistency,
+        transactionStatusPollIntervalMs,
+        schema)
+    } else {
+      new NonTransactionPravegaWriter(
+            scopeName,
+            streamName,
+            clientConfig,
+            schema)
+    }
+
+}
 
   /**
     * Creates an optional {@link DataSourceWriter} to save the data to this data source. Data
@@ -308,14 +317,22 @@ class PravegaSourceProvider extends DataSourceV2
 
     createStreams(caseInsensitiveParams)
 
-    Optional.of(new PravegaWriter(
-      scopeName,
-      streamName,
-      clientConfig,
-      transactionTimeoutMs,
-      readAfterWriteConsistency,
-      transactionStatusPollIntervalMs,
-      schema))
+    if (caseInsensitiveParams.getOrElse(PravegaSourceProvider.EXACTLY_ONCE, "true").toBoolean) {
+      Optional.of(new TransactionPravegaWriter(
+        scopeName,
+        streamName,
+        clientConfig,
+        transactionTimeoutMs,
+        readAfterWriteConsistency,
+        transactionStatusPollIntervalMs,
+        schema))
+    } else {
+      Optional.of(new NonTransactionPravegaWriter(
+        scopeName,
+        streamName,
+        clientConfig,
+        schema))
+    }
   }
 
   def validateStreamOptions(caseInsensitiveParams: Map[String, String]): Unit = {
@@ -419,6 +436,7 @@ object PravegaSourceProvider extends Logging {
   private[spark] val DEFAULT_SEGMENT_TARGET_RATE_EVENTS_PER_SEC_OPTION_KEY = "default_segment_target_rate_events_per_sec"
   private[spark] val DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY = "default_retention_duration_milliseconds"
   private[spark] val DEFAULT_RETENTION_SIZE_BYTES_OPTION_KEY = "default_retention_size_bytes"
+  private[spark] val EXACTLY_ONCE = "exactly_once"
 
   private[spark] val STREAM_CUT_EARLIEST = "earliest"
   private[spark] val STREAM_CUT_LATEST = "latest"

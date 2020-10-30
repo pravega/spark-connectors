@@ -10,7 +10,7 @@
 language: scala
 install: true
 jdk:
-  - oraclejdk8
+  - openjdk8
 scala:
   - 2.11.8
 
@@ -25,9 +25,9 @@ sudo: required
 
 cache:
   directories:
-  - ".gradle"
-  - "$HOME/.gradle"
-  - "$HOME/.m2"
+    - ".gradle"
+    - "$HOME/.gradle"
+    - "$HOME/.m2"
 
 stages:
   - name: build
@@ -44,4 +44,4 @@ jobs:
 
 notifications:
   email:
-  - claudio.fahey@dell.com
+    - claudio.fahey@dell.com

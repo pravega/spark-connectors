@@ -45,7 +45,15 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
     }
   }
 
-  test("batch - write to Pravega without routing key") {
+  test("batch - write to Pravega without routing key, with non-transactions") {
+    writeToPravegaWithoutRoutingKeyBatch(false);
+  }
+
+  test("batch - write to Pravega without routing key, with transactions") {
+    writeToPravegaWithoutRoutingKeyBatch(true);
+  }
+
+  private def writeToPravegaWithoutRoutingKeyBatch(exactlyOnce: Boolean): Unit = {
     val streamName = newStreamName()
     val df = Seq("1", "2", "3", "4", "5").toDF(EVENT_ATTRIBUTE_NAME)
     df.write
@@ -53,13 +61,22 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
+      .option(EXACTLY_ONCE, exactlyOnce)
       .save()
     checkAnswer(
       createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"),
       Row("1") :: Row("2") :: Row("3") :: Row("4") :: Row("5") :: Nil)
   }
 
-  test("batch - write to Pravega with routing key") {
+  test("batch - write to Pravega with routing key, with non-transaction") {
+    writeToPravegaWithRoutingKey(false)
+  }
+
+  test("batch - write to Pravega with routing key, with transaction") {
+    writeToPravegaWithRoutingKey(true)
+  }
+
+  private def writeToPravegaWithRoutingKey(exactlyOnce: Boolean): Unit = {
     val streamName = newStreamName()
     val df = Seq("1", "2", "3", "4", "5").map(v => (v, v)).toDF(ROUTING_KEY_ATTRIBUTE_NAME, EVENT_ATTRIBUTE_NAME)
     df.write
@@ -67,13 +84,22 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
+      .option(EXACTLY_ONCE, exactlyOnce)
       .save()
     checkAnswer(
       createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"),
       Row("1") :: Row("2") :: Row("3") :: Row("4") :: Row("5") :: Nil)
   }
 
-  test("batch - unsupported save modes") {
+  test("batch - unsupported save modes, with non-transaction") {
+    unsupportedSaveModes(false)
+  }
+
+  test("batch - unsupported save modes, with transaction") {
+    unsupportedSaveModes(true)
+  }
+
+  private def unsupportedSaveModes(exactlyOnce: Boolean): Unit = {
     val streamName = newStreamName()
     val df = Seq("1", "2", "3", "4", "5").toDF(EVENT_ATTRIBUTE_NAME)
 
@@ -84,6 +110,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
         .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
         .option(SCOPE_OPTION_KEY, testUtils.scope)
         .option(STREAM_OPTION_KEY, streamName)
+        .option(EXACTLY_ONCE, exactlyOnce)
         .mode(SaveMode.Ignore)
         .save()
     }
@@ -97,6 +124,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
         .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
         .option(SCOPE_OPTION_KEY, testUtils.scope)
         .option(STREAM_OPTION_KEY, streamName)
+        .option(EXACTLY_ONCE, exactlyOnce)
         .mode(SaveMode.Overwrite)
         .save()
     }
@@ -104,7 +132,15 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       s"save mode overwrite not allowed for pravega"))
   }
 
-  test("SPARK-20496: batch - enforce analyzed plans") {
+  test("SPARK-20496: batch - enforce analyzed plans, with non-transaction") {
+    enforceAnalyzedPlans(false)
+  }
+
+  test("SPARK-20496: batch - enforce analyzed plans, with transaction") {
+    enforceAnalyzedPlans(true)
+  }
+
+  private def enforceAnalyzedPlans(exactlyOnce: Boolean): Unit = {
     val inputEvents =
       spark.range(1, 1000)
         .select(to_json(struct("*")) as 'event)
@@ -116,6 +152,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
+      .option(EXACTLY_ONCE, exactlyOnce)
       .save()
   }
 
@@ -147,23 +184,32 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
         .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
         .option(SCOPE_OPTION_KEY, testUtils.scope)
         .option(STREAM_OPTION_KEY, streamName)
+        .option(EXACTLY_ONCE, true)
         .save()
       checkAnswer(createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"), Nil)
     }
     // make sure we don't have partial data.
     checkAnswer(createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"), Nil)
     assert(ex.getMessage.contains("Writing job failed"))
-}
+  }
 
+  test("streaming - write to Pravega without routing key, with non-transaction") {
+    writeToPravegaRoutingKey(false)
+  }
 
-  test("streaming - write to Pravega without routing key") {
+  test("streaming - write to Pravega without routing key, with transaction") {
+    writeToPravegaRoutingKey(true)
+  }
+
+  private def writeToPravegaRoutingKey(exactlyOnce: Boolean): Unit = {
     val input = MemoryStream[String]
     val streamName = newStreamName()
 
     val writer = createPravegaWriter(
       input.toDF(),
       withStreamName = Some(streamName),
-      withOutputMode = Some(OutputMode.Append))(
+      withOutputMode = Some(OutputMode.Append),
+      withOptions = Map(PravegaSourceProvider.EXACTLY_ONCE -> exactlyOnce.toString))(
       withSelectExpr = s"value as ${EVENT_ATTRIBUTE_NAME}")
 
     def reader = createPravegaReader(streamName)
@@ -195,7 +241,8 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       withStreamName = Some(streamName),
       withOutputMode = Some(OutputMode.Append),
       withOptions = Map(
-        PravegaSourceProvider.READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY -> "false"))(
+        PravegaSourceProvider.READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY -> "false",
+      PravegaSourceProvider.EXACTLY_ONCE -> "false"))(
       withSelectExpr = s"value as ${EVENT_ATTRIBUTE_NAME}")
 
     def reader = createPravegaReader(streamName)
@@ -223,13 +270,23 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
     }
   }
 
-  test("streaming - write to Pravega with routing key") {
+  test("streaming - write to Pravega with routing key, with non-transaction") {
+    writeToPravegaWithRoutingKeyStream(false)
+  }
+
+  test("streaming - write to Pravega with routing key, with transaction") {
+    writeToPravegaWithRoutingKeyStream(true)
+  }
+
+  private def writeToPravegaWithRoutingKeyStream(exactlyOnce: Boolean): Unit = {
     val input = MemoryStream[String]
     val streamName = newStreamName()
 
     val writer = createPravegaWriter(
       input.toDF(),
       withStreamName = Some(streamName),
+      withOptions = Map(
+        PravegaSourceProvider.READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY -> exactlyOnce.toString),
       withOutputMode = Some(OutputMode.Append))(
       withSelectExpr = s"value as ${EVENT_ATTRIBUTE_NAME}", s"value as ${ROUTING_KEY_ATTRIBUTE_NAME}")
 
@@ -253,7 +310,15 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
     }
   }
 
-  test("streaming - write aggregation w/o streamName field, with streamName option") {
+  test("streaming - write aggregation w/o streamName field, with streamName option, with non-transaction") {
+    writeNoStreamName(false)
+  }
+
+  test("streaming - write aggregation w/o streamName field, with streamName option, with transaction") {
+    writeNoStreamName(true)
+  }
+
+  private def writeNoStreamName(exactlyOnce: Boolean): Unit = {
     val input = MemoryStream[String]
     val streamName = newStreamName()
 
@@ -262,6 +327,8 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
     val writer = createPravegaWriter(
       input.toDF().groupBy("value").count(),
       withStreamName = Some(streamName),
+      withOptions = Map(
+        PravegaSourceProvider.READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY -> exactlyOnce.toString),
       withOutputMode = Some(OutputMode.Update()))(
       withSelectExpr =
         s"TO_JSON(MAP('key', value, 'value', count)) as ${EVENT_ATTRIBUTE_NAME}",
@@ -289,7 +356,15 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
     }
   }
 
-  test("streaming - write data with bad schema") {
+  test("streaming - write data with bad schema, with non-transaction") {
+    writeBadSchema(false)
+  }
+
+  test("streaming - write data with bad schema, with transaction") {
+    writeBadSchema(true)
+  }
+
+  private def writeBadSchema(exactlyOnce: Boolean): Unit = {
     val input = MemoryStream[String]
     val streamName = newStreamName()
 
@@ -299,6 +374,8 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       /* No event field */
       ex = intercept[StreamingQueryException] {
         writer = createPravegaWriter(input.toDF(),
+          withOptions = Map(
+            PravegaSourceProvider.READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY -> exactlyOnce.toString),
           withStreamName = Some(streamName))(
           withSelectExpr = "value as unused"
         )
@@ -312,7 +389,15 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       s"required attribute '${EVENT_ATTRIBUTE_NAME}' not found"))
   }
 
-  test("streaming - write data with valid schema but wrong types") {
+  test("streaming - write data with valid schema but wrong types, with non-transaction") {
+    writeValidSchemaWrongTypes(false)
+  }
+
+  test("streaming - write data with valid schema but wrong types, with transaction") {
+    writeValidSchemaWrongTypes(true)
+  }
+
+  private def writeValidSchemaWrongTypes(exactlyOnce: Boolean): Unit = {
     val input = MemoryStream[String]
     val streamName = newStreamName()
 
@@ -322,6 +407,8 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       /* event field wrong type */
       ex = intercept[StreamingQueryException] {
         writer = createPravegaWriter(input.toDF(),
+          withOptions = Map(
+            PravegaSourceProvider.READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY -> exactlyOnce.toString),
           withStreamName = Some(streamName))(
           withSelectExpr = s"CAST(value as INT) as ${EVENT_ATTRIBUTE_NAME}"
         )
@@ -353,7 +440,15 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       s"${ROUTING_KEY_ATTRIBUTE_NAME} attribute type must be a string"))
   }
 
-  test("streaming - write to non-existing scope") {
+  test("streaming - write to non-existing scope, with non-transaction") {
+    writeInvalidScope(false)
+  }
+
+  test("streaming - write to non-existing scope, with transaction") {
+    writeInvalidScope(true)
+  }
+
+  private def writeInvalidScope(exactlyOnce: Boolean): Unit = {
     val input = MemoryStream[String]
     val streamName = newStreamName()
 
@@ -365,7 +460,8 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
           withStreamName = Some(streamName),
           withOptions = Map(
             PravegaSourceProvider.ALLOW_CREATE_SCOPE_OPTION_KEY -> "false",
-            PravegaSourceProvider.SCOPE_OPTION_KEY -> s"scopefor${streamName}"))(
+            PravegaSourceProvider.SCOPE_OPTION_KEY -> s"scopefor${streamName}",
+            PravegaSourceProvider.READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY -> exactlyOnce.toString))(
           withSelectExpr = s"value as ${EVENT_ATTRIBUTE_NAME}")
         input.addData("1", "2", "3", "4", "5")
         writer.processAllAvailable()
@@ -387,7 +483,8 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       ex = intercept[StreamingQueryException] {
         writer = createPravegaWriter(input.toDF(),
           withStreamName = Some(streamName),
-          withOptions = Map(PravegaSourceProvider.ALLOW_CREATE_STREAM_OPTION_KEY -> "false"))(
+          withOptions = Map(PravegaSourceProvider.ALLOW_CREATE_STREAM_OPTION_KEY -> "false",
+              PravegaSourceProvider.READ_AFTER_WRITE_CONSISTENCY_OPTION_KEY -> "true"))(
           withSelectExpr = s"value as ${EVENT_ATTRIBUTE_NAME}")
         input.addData("1", "2", "3", "4", "5")
         writer.processAllAvailable()
