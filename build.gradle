@@ -74,7 +74,6 @@ dependencies {
     compile group: 'com.jsuereth', name: 'scala-arm_2.11', version: '2.0'
     compile group: 'org.scala-lang.modules', name: 'scala-java8-compat_2.11', version: '0.9.1'
 
-
     compileOnly group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion
 
     shadowOnly group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion

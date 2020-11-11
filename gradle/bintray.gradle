@@ -1,11 +1,12 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  */
 
 import java.text.SimpleDateFormat
@@ -29,7 +30,7 @@ if (project.hasProperty("publishRepo") && publishRepo == "bintrayRelease") {
             publish = "${autoPublish}"
             vcsUrl = 'https://github.com/pravega/spark-connectors.git'
             version {
-                desc = 'Spark Pravega Connector Artifacts'
+                desc = 'Flink Pravega Connector Artifacts'
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ")
                 released = sdf.format(new Date())
                 gpg {
@@ -46,9 +47,9 @@ def pomConfig = {
     url "http://pravega.io"
     description "Streaming Storage Platform"
     scm {
-        url 'https://github.com/pravega/spark-connectors/tree/master'
-        connection 'scm:git:git://github.com/pravega/spark-connectors.git'
-        developerConnection 'scm:git:https://github.com/pravega/spark-connectors.git'
+        url 'https://github.com/pravega/flink-connectors/tree/master'
+        connection 'scm:git:git://github.com/pravega/flink-connectors.git'
+        developerConnection 'scm:git:https://github.com/pravega/flink-connectors.git'
     }
     licenses {
         license {
@@ -85,6 +86,7 @@ task publishToBintray (dependsOn: 'bintrayUpload') {
 
                     root.children().last() + pomConfig
                 }
+
             }
         }
     }
