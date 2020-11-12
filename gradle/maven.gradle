@@ -6,9 +6,9 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  */
 
-// refer https://docs.gradle.org/current/userguide/signing_plugin.html for details about how to sign
 apply plugin: 'maven'
 apply plugin: 'signing'
 
@@ -84,6 +84,16 @@ tasks.withType(Upload) {
                 license {
                     name 'The Apache License, Version 2.0'
                     url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                }
+            }
+            developers {
+                developer {
+                    id 'cf'
+                    name 'Claudio Fahey'
+                }
+                developer {
+                    id 'tj'
+                    name 'Thejas Vidyasagar'
                 }
             }
         }
