@@ -39,7 +39,7 @@ jobs:
       script: ./gradlew clean build
 
     - stage: snapshot
-      if: (branch = master OR branch = travisTest1 OR branch =~ /^r[0-9]+\.[0-9]+/) AND NOT (type = pull_request)
+      if: (branch = master OR branch =~ /^r[0-9]+\.[0-9]+/) AND NOT (type = pull_request)
       env:
         - secure: "Hdj/m4+hCQ2gj9f9npFgAMiRQCzbLFBR2deeIN1ydWeEOi74LdZsNWp0dVyRzSQQijB9RGzQ102r639uwXEoWebh7ARywYSUFwA4UNdYRN38ilToZN+j2K2PyriR/ZNrqB6agW46QA8oZGXo6VKpDMPHeKRf2r5JjKH9QSaWxdMHj+DKM/zV/syL6sFMt9vU5blr/px9+MyBWoxBGT4po0FwzUipWrvNov8SotEjAPMGfug7HXwW13SMH1Ehg3HH/hP4p9/UgvAId6WECLwRRGgpOI+pBgbl6XX9En26bfYk0mUfboVbmo8SmGZZwby59BxGmdE/BRSIAoCYF777kHq1B1E399J5f6ENBD0MKymlp/3vGfgBQ68TCX57veHGAWEBuoVj3GUF5jYg6geNEw3HxKME9bWlmnTxf65X2UBsMie8vxyAVYjg/xYeVF/8eENhgZ4EhccoLVDQA/L9ZPoaPqagpiXc0EnWEU/DqqaqJXMbbbfPKtVIYQXkQb1Vfq8343r+VTmEDasv+S8XEWSrwNnDHzroZfgTzDzTQXEhuyOOu7EpuWWPyXVPI59u24hhRvs8ji3dxjxe2CBepUY/LKceTSwfllB8hN+VrWLCUa72KWTEhZsYItNpgG8ZQhL547leBkZX/MPobVXe577Qu4T/hkOJRtd9EVaDKzI="
         - secure: "pDC7Ro1A4kYRxo5jW4XEEFWr+ygK9ssKfqOTNWGcTprN+6qhCuxXGeqYTV40gz+EuihToriyvK8rEIXLWYn9PwwetpfXf6qpTjIs7vmwS9AgrEW+fWlMzhR0yiQHfbnO65yXoBXaVa/bDWCb0Q2p+k8I+kR8xjuFukJNRlnYC1472UOwoJ+XEFk1LFFpasT4XyLI9CYufb/LJrkvut9XsHsVJIJhLY++Bj0esT/goF0U/++7QQd4a4hK9p/gEuN4Zl5aDY4U7ygZAKNI+jBEhgJYIuYakExdJrwRGqvp5ie2Rtoc1X5zzj+QmU4lDJo/h7Wo3MQkPox2EoNN2Pgtdt80wMauFhsZg+yM4njgBxLNH8UUHhi2pYPIU6RBlCxutr23jwBxbw5Ygask4yMllPCauSmTcTbqyDTTs3HUGUD5V4R3aDtb58xbCV3XftWOJHs9WFsneifHYl89GgFQFQjCYEYvAfEOmVfJNQHl1E786TJRWqmMBqk9ysSUSxl1xq1+eFQQmPgRIc/WYDH5Dyj8lYqRuJj4+DRszXlTAEFLjzvJ7W5Chn5QWugAzq9UkvVtRnYKEdZLzN5D77mGvShIn9Vcdy9imkQwICYfjMK665Jyvuo1cDAt0h+zur5jsSsJ8P/Uph1HLNlWNoxuozWmRmHEPksJ8xnjiPIKmTs="
