@@ -83,7 +83,8 @@ class PravegaBatch(
     PravegaBatchReaderFactory
   }
 
-  override def toString: String =
-    s"createReader: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}" +
-      s" startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}"
+  override def toString: String = {
+    s"PravegaBatch{clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}" +
+      s" startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}}"
+  }
 }

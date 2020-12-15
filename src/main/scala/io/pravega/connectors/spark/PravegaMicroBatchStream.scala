@@ -132,5 +132,8 @@ class PravegaMicroBatchStream(
     streamManager.close()
   }
 
-  override def toString(): String = s"Pravega"
+  override def toString(): String = {
+    s"PravegaMicroBatchStream{clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}" +
+      s" startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}}"
+  }
 }

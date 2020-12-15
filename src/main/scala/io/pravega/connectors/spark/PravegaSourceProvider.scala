@@ -36,7 +36,6 @@ import org.apache.spark.sql.types.{StructField, _}
 import org.apache.spark.unsafe.types.UTF8String
 import resource.managed
 
-import scala.collection.JavaConversions.asScalaIterator
 import scala.collection.JavaConverters._
 import scala.util.Try
 
@@ -58,6 +57,12 @@ class PravegaSourceProvider extends DataSourceRegister
   /** String that represents the format that this data source provider uses. */
   override def shortName(): String = PravegaSourceProvider.SOURCE_PROVIDER_NAME
 
+
+  /**
+   * Return a {@link Table} instance with the specified table schema, partitioning and properties
+   * to do read/write. The returned table should report the same schema and partitioning with the
+   * specified ones, or Spark may fail the operation.
+   */
   override def getTable(options: CaseInsensitiveStringMap): Table = {
     val caseInsensitiveParams = CaseInsensitiveMap(options.asScala.toMap)
     validateBatchOptions(caseInsensitiveParams)
@@ -72,7 +77,6 @@ class PravegaSourceProvider extends DataSourceRegister
   }
 
 
-  // Pravega private method
   def validateStreamOptions(caseInsensitiveParams: Map[String, String]): Unit = {
     validateGeneralOptions(caseInsensitiveParams)
 
@@ -117,13 +121,11 @@ class PravegaSourceProvider extends DataSourceRegister
     }
   }
 
-  // Pravega private method
   private def validateBatchOptions(caseInsensitiveParams: Map[String, String]): Unit = {
     // TODO: validate options
     validateGeneralOptions(caseInsensitiveParams)
   }
 
-  // Pravega private method
   private def validateGeneralOptions(caseInsensitiveParams: Map[String, String]): Unit = {
     if (caseInsensitiveParams.getOrElse(PravegaSourceProvider.SCOPE_OPTION_KEY, "").isEmpty) {
       throw new IllegalArgumentException(s"Missing required option '${PravegaSourceProvider.SCOPE_OPTION_KEY}'")
@@ -133,7 +135,6 @@ class PravegaSourceProvider extends DataSourceRegister
     }
   }
 
-  // Pravega private method
   private def buildClientConfig(caseInsensitiveParams: Map[String, String]): ClientConfig = {
     val controllerURI = URI.create(caseInsensitiveParams.getOrElse(PravegaSourceProvider.CONTROLLER_OPTION_KEY, DEFAULT_CONTROLLER))
     ClientConfig.builder()
@@ -141,7 +142,6 @@ class PravegaSourceProvider extends DataSourceRegister
       .build()
   }
 
-  // Pravega private method
   private def createStreams(caseInsensitiveParams: Map[String, String]): Unit = {
     val clientConfig = buildClientConfig(caseInsensitiveParams)
     for (streamManager <- managed(StreamManager.create(clientConfig))) {
@@ -223,7 +223,7 @@ class PravegaSourceProvider extends DataSourceRegister
           case None => DEFAULT_TRANSACTION_STATUS_POLL_INTERVAL_MS
         }
 
-        log.info(s"createWriter: parameters=${parameters}, clientConfig=${clientConfig}")
+        log.info(s"newWriteBuilder: parameters=${parameters}, clientConfig=${clientConfig}")
 
         createStreams(caseInsensitiveParams)
 
@@ -321,7 +321,7 @@ class PravegaSourceProvider extends DataSourceRegister
 
 
 
-  class PravegaScan(options: CaseInsensitiveStringMap) extends Scan {
+  class PravegaScan(options: CaseInsensitiveStringMap) extends Scan with Logging {
 
     override def readSchema(): StructType = PravegaReader.pravegaSchema
 
@@ -353,7 +353,7 @@ class PravegaSourceProvider extends DataSourceRegister
 
             var rows = Seq[InternalRow]()
 
-            streams.foreach(stream => {
+            streams.asScala.foreach(stream => {
               rows = rows :+ new GenericInternalRow(
                 Seq(
                   UTF8String.fromString(stream.getScope),
@@ -364,7 +364,7 @@ class PravegaSourceProvider extends DataSourceRegister
             MemoryDataSourceReader(schema, rows)
           }
         }
-      }).acquireAndGet(identity)
+      }).acquireAndGet(identity _)
     }
 
 
@@ -405,7 +405,7 @@ class PravegaSourceProvider extends DataSourceRegister
       val endStreamCut = PravegaSourceProvider.getPravegaStreamCut(
         caseInsensitiveParams, PravegaSourceProvider.END_STREAM_CUT_OPTION_KEY, LatestStreamCut)
 
-      log.info(s"createReader: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}"
+      log.info(s"toBatch: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}"
         + s" startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}")
 
       createStreams(caseInsensitiveParams)
@@ -432,7 +432,9 @@ class PravegaSourceProvider extends DataSourceRegister
      *
      * @param checkpointLocation a path to Hadoop FS scratch space that can be used for failure
      *                           recovery. Readers for the same logical source in the same query
-     *                           will be given the same checkpointLocation.
+     *                           will be given the same checkpointLocation. The Pravega connector
+     *                           does not need to implement this checkpointLocation since the spark
+     *                           handles the Pravega streamcut through the Offset interface.
      */
     override def toMicroBatchStream(checkpointLocation: String): MicroBatchStream = {
       val caseInsensitiveParams = CaseInsensitiveMap(options.asScala.toMap)
@@ -448,7 +450,7 @@ class PravegaSourceProvider extends DataSourceRegister
       val endStreamCut = PravegaSourceProvider.getPravegaStreamCut(
       caseInsensitiveParams, PravegaSourceProvider.END_STREAM_CUT_OPTION_KEY, UnboundedStreamCut)
 
-      log.info(s"createMicroBatchReader: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}"
+      log.info(s"toMicroBatchStream: clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}"
       + s" startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}")
 
       createStreams(caseInsensitiveParams)
@@ -462,7 +464,6 @@ class PravegaSourceProvider extends DataSourceRegister
         endStreamCut)
     }
 
-    //    override def toContinuousStream(checkpointLocation: String): ContinuousStream =
   }
 
 }

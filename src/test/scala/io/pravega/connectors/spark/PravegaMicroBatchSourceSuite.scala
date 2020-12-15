@@ -101,7 +101,6 @@ abstract class PravegaSourceTest extends StreamTest with SharedSparkSession with
       val pravegaSource = sources.head
       val streamName = streamNames.toSeq(Random.nextInt(streamNames.size))
       testUtils.sendMessages(streamName, data.map { _.toString }.toArray)
-      Thread.sleep(1000)
       val offset = PravegaSourceOffset(testUtils.getLatestStreamCut(streamNames))
       logInfo(s"Added data, expected offset $offset")
       (pravegaSource, offset)
@@ -274,10 +273,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
         true
       },
       AddPravegaData(Set(streamName), 9, 10, 11, 12, 13, 14, 15, 16),
-      CheckAnswer(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17),
-      Execute("Add segments") { query: StreamExecution =>
-        println("CheckAnswer completed")
-      }
+      CheckAnswer(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     )
   }
 

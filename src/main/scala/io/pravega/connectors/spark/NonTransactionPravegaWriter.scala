@@ -147,11 +147,9 @@ class NonTransactionPravegaDataWriter(
 
       val f = toScala(writer.writeEvent(ByteBuffer.wrap(event)))
       f
-        .map(println)
         .recover { case e =>
-          e.printStackTrace
-          "recovered"
-        }.map(println)
+          log.error(s"write: event=${eventToLog}, error=${e}")
+        }
     }
     log.debug(s"write: end")
   }
