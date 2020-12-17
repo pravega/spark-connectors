@@ -17,11 +17,9 @@
 
 package io.pravega.connectors.spark
 
-import java.{util => ju}
-
-import io.pravega.client.{BatchClientFactory, ClientConfig}
 import io.pravega.client.batch.SegmentRange
 import io.pravega.client.stream.impl.ByteBufferSerializer
+import io.pravega.client.{BatchClientFactory, ClientConfig}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow

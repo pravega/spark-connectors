@@ -17,6 +17,9 @@ import org.apache.spark.sql.{QueryTest, SaveMode}
 import org.apache.spark.sql.test.SharedSparkSession
 
 
+/**
+ * Test for Batch Reader and Metadata Table Reader
+ */
 class PravegaDataSourceSuite extends QueryTest with SharedSparkSession with PravegaTest {
   import testImplicits._
 
@@ -209,7 +212,6 @@ class PravegaDataSourceSuite extends QueryTest with SharedSparkSession with Prav
     val streamName1 = newStreamName()
     val streamName2 = newStreamName()
     val streamName3 = newStreamName()
-    val streamSet = Set(streamName1, streamName2, streamName3)
     val df = Seq("1", "2", "3", "4", "5").toDF(EVENT_ATTRIBUTE_NAME)
     df.write
       .format(SOURCE_PROVIDER_NAME)

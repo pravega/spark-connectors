@@ -17,18 +17,15 @@ import java.util.concurrent.atomic.AtomicInteger
 import io.pravega.client.stream.impl.ByteBufferSerializer
 import io.pravega.client.stream.{EventStreamWriter, EventWriterConfig}
 import io.pravega.client.{ClientConfig, EventStreamClientFactory}
+import io.pravega.connectors.spark.PravegaSourceProvider._
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Cast, Literal, UnsafeProjection}
 import org.apache.spark.sql.connector.write.streaming.{StreamingDataWriterFactory, StreamingWrite}
-import org.apache.spark.sql.connector.write.{BatchWrite, DataWriter, DataWriterFactory, PhysicalWriteInfo}
+import org.apache.spark.sql.connector.write._
 import org.apache.spark.sql.types.{BinaryType, StringType, StructType}
-import io.pravega.connectors.spark.PravegaSourceProvider._
 
 import scala.compat.java8.FutureConverters._
-
-import org.apache.spark.sql.connector.write.WriterCommitMessage
-
 import scala.concurrent.ExecutionContext.Implicits.global
 
 case class NonTransactionPravegaWriterCommitMessage(transactionId: UUID) extends WriterCommitMessage
@@ -49,18 +46,6 @@ class NonTransactionPravegaWriter(
                      clientConfig: ClientConfig,
                      schema: StructType)
   extends StreamingWrite with BatchWrite with Logging {
-
-  private def createClientFactory: EventStreamClientFactory = {
-    EventStreamClientFactory.withScope(scopeName, clientConfig)
-  }
-
-  private def createWriter(clientFactory: EventStreamClientFactory): EventStreamWriter[ByteBuffer] = {
-    clientFactory.createEventWriter(
-      streamName,
-      new ByteBufferSerializer,
-      EventWriterConfig.builder
-        .build)
-  }
 
   override def createBatchWriterFactory(info: PhysicalWriteInfo):  NonTransactionPravegaWriterFactory =
     NonTransactionPravegaWriterFactory(scopeName, streamName, clientConfig, schema)
@@ -135,22 +120,22 @@ class NonTransactionPravegaDataWriter(
       if (s.length > maxLength) s.substring(0, maxLength) + "..." else s
     } else null
 
-    log.info(s"write: begin")
+    log.debug(s"write: begin")
 
     val haveRoutingKey = !projectedRow.isNullAt(0)
-    if (haveRoutingKey) {
-      val routingKey = projectedRow.getUTF8String(0).toString
-      log.debug(s"write: routingKey=${routingKey}, event=${eventToLog}")
-      writer.writeEvent(routingKey, ByteBuffer.wrap(event))
-    } else {
-      log.debug(s"write: event=${eventToLog}")
-
-      val f = toScala(writer.writeEvent(ByteBuffer.wrap(event)))
-      f
-        .recover { case e =>
-          log.error(s"write: event=${eventToLog}, error=${e}")
-        }
-    }
+    val writeFuture =
+      if (haveRoutingKey) {
+        val routingKey = projectedRow.getUTF8String(0).toString
+        log.debug(s"write: routingKey=${routingKey}, event=${eventToLog}")
+        writer.writeEvent(routingKey, ByteBuffer.wrap(event)).toScala
+      } else {
+        log.debug(s"write: event=${eventToLog}")
+        writer.writeEvent(ByteBuffer.wrap(event)).toScala;
+      }
+    writeFuture
+      .recover { case e =>
+        log.error(s"write: event=${eventToLog}, error=${e}")
+      }
     log.debug(s"write: end")
   }
 

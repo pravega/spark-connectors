@@ -17,20 +17,13 @@
 
 package io.pravega.connectors.spark
 
-import java.{util => ju}
-
 import io.pravega.client.admin.StreamManager
-import io.pravega.client.{BatchClientFactory, ClientConfig}
 import io.pravega.client.stream.{Stream, StreamCut}
-import org.apache.spark.SparkEnv
+import io.pravega.client.{BatchClientFactory, ClientConfig}
 import org.apache.spark.internal.Logging
-import org.apache.spark.scheduler.ExecutorCacheTaskLocation
-import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
+import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, Offset}
 import org.apache.spark.sql.connector.read.{InputPartition, PartitionReaderFactory}
-import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, Offset, ReadAllAvailable, ReadLimit, ReadMaxRows, SupportsAdmissionControl}
-import org.apache.spark.sql.util.CaseInsensitiveStringMap
-import org.apache.spark.util.UninterruptibleThread
 import resource.managed
 
 import scala.collection.JavaConverters.asScalaIteratorConverter
@@ -54,7 +47,7 @@ class PravegaMicroBatchStream(
 
   protected var batchStartStreamCut: StreamCut = _
   protected var batchEndStreamCut: StreamCut = _
-  log.info(s"MicroBatchStream Received: (${startStreamCut},${endStreamCut})")
+  log.info(s"Initializing micro-batch stream: ${this}")
 
 
   private val streamManager = StreamManager.create(clientConfig)

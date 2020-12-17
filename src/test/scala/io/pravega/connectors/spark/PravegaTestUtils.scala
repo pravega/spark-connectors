@@ -124,7 +124,6 @@ class PravegaTestUtils extends Logging {
         val currentSegments = SETUP_UTILS.getController.getCurrentSegments(scope, streamName).get
         log.info(s"setStreamSegments: before scaling: currentSegments=$currentSegments")
 
-//        val sealedSegments: ju.List[java.lang.Long] = currentSegments.getSegments.map(_.getSegmentId).map(Long.box).toList.asJava
         val sealedSegments: ju.List[java.lang.Long] = currentSegments.getSegments.asScala.map(_.getSegmentId).map(Long.box).toList.asJava
 
         // Calculate uniform distribution of key ranges.

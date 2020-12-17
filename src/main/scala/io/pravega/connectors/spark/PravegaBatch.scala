@@ -17,11 +17,9 @@
 
 package io.pravega.connectors.spark
 
-import io.pravega.client.{BatchClientFactory, ClientConfig}
 import io.pravega.client.stream.{Stream, StreamCut}
-import org.apache.spark.SparkEnv
+import io.pravega.client.{BatchClientFactory, ClientConfig}
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.connector.read.{Batch, InputPartition, PartitionReaderFactory}
 import resource.managed

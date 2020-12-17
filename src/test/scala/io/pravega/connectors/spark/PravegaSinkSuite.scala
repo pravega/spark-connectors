@@ -24,6 +24,7 @@ import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.time.Span
 import org.scalatest.time.SpanSugar._
 
+
 class PravegaSinkSuite extends StreamTest with SharedSparkSession with PravegaTest {
   import testImplicits._
 
@@ -44,7 +45,7 @@ class PravegaSinkSuite extends StreamTest with SharedSparkSession with PravegaTe
       super.afterAll()
     }
   }
-
+  // Test for batch  writer
   test("batch - write to Pravega without routing key, with non-transactions") {
     writeToPravegaWithoutRoutingKeyBatch(false);
   }
@@ -193,6 +194,7 @@ class PravegaSinkSuite extends StreamTest with SharedSparkSession with PravegaTe
     assert(ex.getMessage.contains("Writing job failed"))
   }
 
+  // Test for stream writer
   test("streaming - write to Pravega without routing key, with non-transaction") {
     writeToPravegaRoutingKey(false)
   }
