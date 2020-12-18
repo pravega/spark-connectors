@@ -12,32 +12,26 @@ package io.pravega.connectors.spark
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.util.UUID
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.function.BiConsumer
 
 import io.pravega.client.stream.impl.ByteBufferSerializer
-import io.pravega.client.stream.{EventStreamWriter, EventWriterConfig, Transaction, TransactionalEventStreamWriter, TxnFailedException}
+import io.pravega.client.stream.{EventStreamWriter, EventWriterConfig}
 import io.pravega.client.{ClientConfig, EventStreamClientFactory}
+import io.pravega.connectors.spark.PravegaSourceProvider._
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Cast, Literal, UnsafeProjection}
-import org.apache.spark.sql.sources.v2.writer._
-import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
+import org.apache.spark.sql.connector.write.streaming.{StreamingDataWriterFactory, StreamingWrite}
+import org.apache.spark.sql.connector.write._
 import org.apache.spark.sql.types.{BinaryType, StringType, StructType}
-import io.pravega.connectors.spark.PravegaSourceProvider._
-import resource.managed
 
 import scala.compat.java8.FutureConverters._
-import java.util.function._
-
-import scala.compat.java8.FunctionConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 case class NonTransactionPravegaWriterCommitMessage(transactionId: UUID) extends WriterCommitMessage
 
 /**
-  * Both a [[StreamWriter]] and a [[DataSourceWriter]] for Pravega writing.
+  * Both a [[StreamingWrite]] and a [[BatchWrite]] for Pravega writing.
   * Responsible for generating the writer factory.
   * It uses Pravega transactions to support exactly-once semantics.
   * Used by both streaming and batch jobs.
@@ -51,29 +45,22 @@ class NonTransactionPravegaWriter(
                      streamName: String,
                      clientConfig: ClientConfig,
                      schema: StructType)
-  extends DataSourceWriter with StreamWriter with Logging {
+  extends StreamingWrite with BatchWrite with Logging {
 
-  private def createClientFactory: EventStreamClientFactory = {
-    EventStreamClientFactory.withScope(scopeName, clientConfig)
-  }
-
-  private def createWriter(clientFactory: EventStreamClientFactory): EventStreamWriter[ByteBuffer] = {
-    clientFactory.createEventWriter(
-      streamName,
-      new ByteBufferSerializer,
-      EventWriterConfig.builder
-        .build)
-  }
-
-  override def createWriterFactory(): NonTransactionPravegaWriterFactory =
+  override def createBatchWriterFactory(info: PhysicalWriteInfo):  NonTransactionPravegaWriterFactory =
     NonTransactionPravegaWriterFactory(scopeName, streamName, clientConfig, schema)
 
-  override def abort(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {}
-
   // Used for batch writer.
-  override def commit(messages: Array[WriterCommitMessage]): Unit = commit(0, messages)
+  override def commit(messages: Array[WriterCommitMessage]):  Unit = {}
+
+  override def abort(messages: Array[WriterCommitMessage]): Unit = {}
+
+  override def createStreamingWriterFactory(info: PhysicalWriteInfo): NonTransactionPravegaWriterFactory =
+    NonTransactionPravegaWriterFactory(scopeName, streamName, clientConfig, schema)
 
   override def commit(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {}
+
+  override def abort(epochId: Long, messages: Array[WriterCommitMessage]): Unit = {}
 }
 
 /**
@@ -87,12 +74,13 @@ case class NonTransactionPravegaWriterFactory(
                                        streamName: String,
                                        clientConfig: ClientConfig,
                                        schema: StructType)
-  extends DataWriterFactory[InternalRow] with Logging {
+  extends DataWriterFactory with StreamingDataWriterFactory with Logging {
 
-  override def createDataWriter(
-                                 partitionId: Int,
-                                 taskId: Long,
-                                 epochId: Long): DataWriter[InternalRow] = {
+  override def createWriter(partitionId: Int, taskId: Long): DataWriter[InternalRow] = {
+    new NonTransactionPravegaDataWriter(scopeName, streamName, clientConfig, schema)
+  }
+
+  override def createWriter(partitionId: Int, taskId: Long, epochId: Long): DataWriter[InternalRow] = {
     new NonTransactionPravegaDataWriter(scopeName, streamName, clientConfig, schema)
   }
 }
@@ -132,24 +120,22 @@ class NonTransactionPravegaDataWriter(
       if (s.length > maxLength) s.substring(0, maxLength) + "..." else s
     } else null
 
-    log.info(s"write: begin")
+    log.debug(s"write: begin")
 
     val haveRoutingKey = !projectedRow.isNullAt(0)
-    if (haveRoutingKey) {
-      val routingKey = projectedRow.getUTF8String(0).toString
-      log.debug(s"write: routingKey=${routingKey}, event=${eventToLog}")
-      writer.writeEvent(routingKey, ByteBuffer.wrap(event))
-    } else {
-      log.debug(s"write: event=${eventToLog}")
-
-      val f = toScala(writer.writeEvent(ByteBuffer.wrap(event)))
-      f
-        .map(println)
-        .recover { case e =>
-          e.printStackTrace
-          "recovered"
-        }.map(println)
-    }
+    val writeFuture =
+      if (haveRoutingKey) {
+        val routingKey = projectedRow.getUTF8String(0).toString
+        log.debug(s"write: routingKey=${routingKey}, event=${eventToLog}")
+        writer.writeEvent(routingKey, ByteBuffer.wrap(event)).toScala
+      } else {
+        log.debug(s"write: event=${eventToLog}")
+        writer.writeEvent(ByteBuffer.wrap(event)).toScala;
+      }
+    writeFuture
+      .recover { case e =>
+        log.error(s"write: event=${eventToLog}, error=${e}")
+      }
     log.debug(s"write: end")
   }
 
@@ -170,7 +156,7 @@ class NonTransactionPravegaDataWriter(
     log.debug("abort:END")
   }
 
-  private def close(): Unit = {
+  override def close(): Unit = {
     log.debug("close: BEGIN")
     try {
       writer.close()

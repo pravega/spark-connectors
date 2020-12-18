@@ -14,15 +14,17 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import io.pravega.client.stream.StreamCut
 import io.pravega.connectors.spark.PravegaSourceProvider._
+import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, SparkDataStream}
+import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2Relation
 import org.apache.spark.sql.execution.streaming._
-import org.apache.spark.sql.streaming.{ProcessingTime, StreamTest}
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.streaming.{StreamTest, Trigger}
+import org.apache.spark.sql.test.SharedSparkSession
 import org.scalatest.time.Span
 import org.scalatest.time.SpanSugar._
 
 import scala.util.Random
 
-abstract class PravegaSourceTest extends StreamTest with SharedSQLContext with PravegaTest {
+abstract class PravegaSourceTest extends StreamTest with SharedSparkSession with PravegaTest {
 
   protected var testUtils: PravegaTestUtils = _
 
@@ -67,7 +69,7 @@ abstract class PravegaSourceTest extends StreamTest with SharedSQLContext with P
                           message: String = "",
                           numSegments: Option[Int] = None) extends AddData {
 
-    override def addData(query: Option[StreamExecution]): (BaseStreamingSource, Offset) = {
+    override def addData(query: Option[StreamExecution]): (SparkDataStream, Offset) = {
       query match {
         // Make sure no Spark job is running when deleting a streamName
         case Some(m: MicroBatchExecution) => m.processAllAvailable()
@@ -82,7 +84,9 @@ abstract class PravegaSourceTest extends StreamTest with SharedSQLContext with P
 
       val sources = {
         query.get.logicalPlan.collect {
-          case StreamingExecutionRelation(source: PravegaMicroBatchReader, _) => source
+          case StreamingExecutionRelation(source: PravegaMicroBatchStream, _) => source
+          case r: StreamingDataSourceV2Relation if r.stream.isInstanceOf[PravegaMicroBatchStream] =>
+            r.stream
         }
       }.distinct
 
@@ -97,7 +101,6 @@ abstract class PravegaSourceTest extends StreamTest with SharedSQLContext with P
       val pravegaSource = sources.head
       val streamName = streamNames.toSeq(Random.nextInt(streamNames.size))
       testUtils.sendMessages(streamName, data.map { _.toString }.toArray)
-
       val offset = PravegaSourceOffset(testUtils.getLatestStreamCut(streamNames))
       logInfo(s"Added data, expected offset $offset")
       (pravegaSource, offset)
@@ -396,7 +399,7 @@ abstract class PravegaMicroBatchSourceSuiteBase extends PravegaSourceSuiteBase {
 
     val mapped = dataset.map(e => e.toInt + 1)
     testStream(mapped)(
-      StartStream(trigger = ProcessingTime(1)),
+      StartStream(trigger = Trigger.ProcessingTime(1)),
       makeSureGetOffsetCalled,
       AddPravegaData(Set(streamName), 1, 2, 3),
       CheckAnswer(2, 3, 4),

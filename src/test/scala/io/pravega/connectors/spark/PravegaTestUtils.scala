@@ -25,7 +25,6 @@ import org.scalatest.time.Span
 import resource.managed
 import org.scalatest.time.SpanSugar._
 
-import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
 /**
@@ -124,7 +123,9 @@ class PravegaTestUtils extends Logging {
         // Get current list of segments.
         val currentSegments = SETUP_UTILS.getController.getCurrentSegments(scope, streamName).get
         log.info(s"setStreamSegments: before scaling: currentSegments=$currentSegments")
-        val sealedSegments: ju.List[java.lang.Long] = currentSegments.getSegments.map(_.getSegmentId).map(Long.box).toList.asJava
+
+        val sealedSegments: ju.List[java.lang.Long] = currentSegments.getSegments.asScala.map(_.getSegmentId).map(Long.box).toList.asJava
+
         // Calculate uniform distribution of key ranges.
         val newKeyRanges: ju.Map[java.lang.Double, java.lang.Double] =
           (0 until numSegments).map(i => Double.box(i.toDouble / numSegments) -> Double.box((i.toDouble + 1) / numSegments)).toMap.asJava

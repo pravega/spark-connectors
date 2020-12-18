@@ -14,21 +14,23 @@ import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 import io.pravega.client.stream.impl.ByteBufferSerializer
-import io.pravega.client.stream.{TransactionalEventStreamWriter, EventWriterConfig, Transaction, TxnFailedException}
+import io.pravega.client.stream.{EventWriterConfig, Transaction, TransactionalEventStreamWriter, TxnFailedException}
 import io.pravega.client.{ClientConfig, EventStreamClientFactory}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Cast, Literal, UnsafeProjection}
-import org.apache.spark.sql.sources.v2.writer._
-import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter
+import org.apache.spark.sql.connector.write.{BatchWrite, DataWriter, DataWriterFactory, PhysicalWriteInfo}
+import org.apache.spark.sql.connector.write.streaming.StreamingDataWriterFactory
 import org.apache.spark.sql.types.{BinaryType, StringType, StructType}
 import io.pravega.connectors.spark.PravegaSourceProvider._
+import org.apache.spark.sql.connector.write.WriterCommitMessage
+import org.apache.spark.sql.connector.write.streaming.StreamingWrite
 import resource.managed
 
 case class TransactionPravegaWriterCommitMessage(transactionId: UUID) extends WriterCommitMessage
 
 /**
-  * Both a [[StreamWriter]] and a [[DataSourceWriter]] for Pravega writing.
+  * Both a [[StreamingWrite]] and a [[BatchWrite]] for Pravega writing.
   * Responsible for generating the writer factory.
   * It uses Pravega transactions to support exactly-once semantics.
   * Used by both streaming and batch jobs.
@@ -51,7 +53,7 @@ class TransactionPravegaWriter(
                      readAfterWriteConsistency: Boolean,
                      transactionStatusPollIntervalMs: Long,
                      schema: StructType)
-  extends DataSourceWriter with StreamWriter with Logging {
+  extends StreamingWrite with BatchWrite with Logging {
 
   private def createClientFactory: EventStreamClientFactory = {
     EventStreamClientFactory.withScope(scopeName, clientConfig)
@@ -66,8 +68,9 @@ class TransactionPravegaWriter(
         .build)
   }
 
-  override def createWriterFactory(): TransactionPravegaWriterFactory =
+  override def createStreamingWriterFactory(info: PhysicalWriteInfo): TransactionPravegaWriterFactory = {
     TransactionPravegaWriterFactory(scopeName, streamName, clientConfig, transactionTimeoutMs, schema)
+  }
 
   /**
     * To allow allows read-after-write consistency, we want to wait until the transaction transitions to COMMITTED
@@ -138,6 +141,10 @@ class TransactionPravegaWriter(
     log.debug(s"abort: END: epochId=$epochId, messages=${messages.mkString(",")}")
   }
 
+
+  override def createBatchWriterFactory(info: PhysicalWriteInfo): TransactionPravegaWriterFactory =
+    TransactionPravegaWriterFactory(scopeName, streamName, clientConfig, transactionTimeoutMs, schema)
+
   // Used for batch writer.
   override def commit(messages: Array[WriterCommitMessage]): Unit = commit(0, messages)
 
@@ -146,7 +153,7 @@ class TransactionPravegaWriter(
 }
 
 /**
-  * A [[DataWriterFactory]] for Pravega writing. It will be serialized and sent to executors to
+  * A [[StreamingDataWriterFactory]] and a [[DataWriterFactory]]for Pravega writing. It will be serialized and sent to executors to
   * generate the per-task data writers.
   *
   * @param transactionTimeoutTime   The number of milliseconds for transactions to timeout.
@@ -158,12 +165,16 @@ case class TransactionPravegaWriterFactory(
                                        clientConfig: ClientConfig,
                                        transactionTimeoutTime: Long,
                                        schema: StructType)
-  extends DataWriterFactory[InternalRow] with Logging {
+  extends StreamingDataWriterFactory with DataWriterFactory with Logging {
 
-  override def createDataWriter(
+  override def createWriter(
                                  partitionId: Int,
                                  taskId: Long,
                                  epochId: Long): DataWriter[InternalRow] = {
+    new TransactionPravegaDataWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
+  }
+
+  override def createWriter(partitionId: Int, taskId: Long): DataWriter[InternalRow] = {
     new TransactionPravegaDataWriter(scopeName, streamName, clientConfig, transactionTimeoutTime, schema)
   }
 }
@@ -251,7 +262,7 @@ class TransactionPravegaDataWriter(
     }
   }
 
-  private def close(): Unit = {
+  override def close(): Unit = {
     log.debug("close: BEGIN")
     try {
       writer.close()

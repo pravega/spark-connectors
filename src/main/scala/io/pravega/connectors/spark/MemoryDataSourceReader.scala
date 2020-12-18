@@ -9,33 +9,36 @@
  */
 package io.pravega.connectors.spark
 
-import java.{util => ju}
-
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.sources.v2.reader.{DataSourceReader, InputPartition, InputPartitionReader}
+import org.apache.spark.sql.connector.read.{Batch, InputPartition, PartitionReader, PartitionReaderFactory, Scan}
 import org.apache.spark.sql.types._
-
-import scala.collection.JavaConverters._
 
 /**
   * A simple DataSourceReader to provide small tables as a dataframe.
   * This is used to provide Pravega stream metadata.
   */
 case class MemoryDataSourceReader(
-                            schema: StructType,
-                            rows: Seq[InternalRow]) extends DataSourceReader with Logging {
-  override def planInputPartitions(): ju.List[InputPartition[InternalRow]] =
-    Seq(MemoryInputPartition(rows): InputPartition[InternalRow]).asJava
+                                   schema: StructType,
+                                   rows: Seq[InternalRow]) extends Scan with Batch with Logging {
+  override def planInputPartitions():  Array[InputPartition] =
+    Array(SimpleInputPartition(rows))
 
   override def readSchema(): StructType = schema
+
+  override def createReaderFactory(): PartitionReaderFactory = MemoryInputPartition(rows)
 }
 
-case class MemoryInputPartition(rows: Seq[InternalRow]) extends InputPartition[InternalRow] {
-  override def createPartitionReader(): InputPartitionReader[InternalRow] = MemoryInputPartitionReader(rows)
+case class SimpleInputPartition(rows: Seq[InternalRow]) extends InputPartition
+
+case class MemoryInputPartition(rows: Seq[InternalRow]) extends PartitionReaderFactory {
+  override def createReader(partition: InputPartition): PartitionReader[InternalRow] = {
+    MemoryInputPartitionReader(partition.asInstanceOf[SimpleInputPartition])
+  }
 }
 
-case class MemoryInputPartitionReader(rows: Seq[InternalRow]) extends InputPartitionReader[InternalRow] {
+case class MemoryInputPartitionReader(inputPartition: SimpleInputPartition) extends PartitionReader[InternalRow] {
+  private val rows = inputPartition.rows.toArray
   private val it = rows.iterator
   override def next(): Boolean = it.hasNext
   override def get(): InternalRow = it.next

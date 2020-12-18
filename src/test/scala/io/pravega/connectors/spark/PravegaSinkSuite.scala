@@ -19,12 +19,13 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.execution.streaming.MemoryStream
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.streaming._
-import org.apache.spark.sql.test.SharedSQLContext
+import org.apache.spark.sql.test.SharedSparkSession
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.time.Span
 import org.scalatest.time.SpanSugar._
 
-class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest {
+
+class PravegaSinkSuite extends StreamTest with SharedSparkSession with PravegaTest {
   import testImplicits._
 
   protected var testUtils: PravegaTestUtils = _
@@ -44,7 +45,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       super.afterAll()
     }
   }
-
+  // Test for batch  writer
   test("batch - write to Pravega without routing key, with non-transactions") {
     writeToPravegaWithoutRoutingKeyBatch(false);
   }
@@ -62,6 +63,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
       .option(EXACTLY_ONCE, exactlyOnce)
+      .mode(SaveMode.Append)
       .save()
     checkAnswer(
       createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"),
@@ -85,6 +87,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
       .option(EXACTLY_ONCE, exactlyOnce)
+      .mode(SaveMode.Append)
       .save()
     checkAnswer(
       createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"),
@@ -104,7 +107,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
     val df = Seq("1", "2", "3", "4", "5").toDF(EVENT_ATTRIBUTE_NAME)
 
     // Test bad save mode Ignore
-    var ex = intercept[IllegalArgumentException] {
+    var ex = intercept[AnalysisException] {
       df.write
         .format(SOURCE_PROVIDER_NAME)
         .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
@@ -114,11 +117,9 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
         .mode(SaveMode.Ignore)
         .save()
     }
-    assert(PravegaTestUtils.exceptionString(ex).toLowerCase(Locale.ROOT).contains(
-      s"save mode ignore not allowed for pravega"))
 
     // Test bad save mode Overwrite
-    ex = intercept[IllegalArgumentException] {
+    ex = intercept[AnalysisException] {
       df.write
         .format(SOURCE_PROVIDER_NAME)
         .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
@@ -128,8 +129,6 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
         .mode(SaveMode.Overwrite)
         .save()
     }
-    assert(PravegaTestUtils.exceptionString(ex).toLowerCase(Locale.ROOT).contains(
-      s"save mode overwrite not allowed for pravega"))
   }
 
   test("SPARK-20496: batch - enforce analyzed plans, with non-transaction") {
@@ -153,6 +152,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
       .option(EXACTLY_ONCE, exactlyOnce)
+      .mode(SaveMode.Append)
       .save()
   }
 
@@ -185,6 +185,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
         .option(SCOPE_OPTION_KEY, testUtils.scope)
         .option(STREAM_OPTION_KEY, streamName)
         .option(EXACTLY_ONCE, true)
+        .mode(SaveMode.Append)
         .save()
       checkAnswer(createPravegaReader(streamName).selectExpr("CAST(event as STRING) value"), Nil)
     }
@@ -193,6 +194,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
     assert(ex.getMessage.contains("Writing job failed"))
   }
 
+  // Test for stream writer
   test("streaming - write to Pravega without routing key, with non-transaction") {
     writeToPravegaRoutingKey(false)
   }
@@ -473,7 +475,7 @@ class PravegaSinkSuite extends StreamTest with SharedSQLContext with PravegaTest
   }
 
   // This test takes 3 minutes because it must wait for a timeout.
-  ignore("streaming - write to non-existing stream") {
+  test("streaming - write to non-existing stream") {
     val input = MemoryStream[String]
     val streamName = newStreamName()
 

@@ -10,7 +10,7 @@
 package io.pravega.connectors.spark
 
 import io.pravega.client.stream.StreamCut
-import org.apache.spark.sql.sources.v2.reader.streaming.Offset
+import org.apache.spark.sql.execution.streaming.{Offset}
 
 /**
  * An [[Offset]] for the [[StreamCut]].
