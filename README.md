@@ -7,7 +7,7 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-# Pravega Spark Connectors
+# Pravega Spark Connectors [![Build Status](https://travis-ci.org/pravega/spark-connectors.svg?branch=master)](https://travis-ci.org/pravega/spark-connectors) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
 This repository implements connectors to read and write [Pravega](http://pravega.io/) Streams
 with [Apache Spark](http://spark.apache.org/),
@@ -43,24 +43,61 @@ supported versions of Spark and Pravega.
 |---------------|-----------------|-----------------------------------------------------------------------------------|
 | 3.0           | 0.8             | [master](https://github.com/pravega/spark-connectors)                             |
 | 2.4           | 0.8             | [r0.8-spark2.4](https://github.com/pravega/spark-connectors/tree/r0.8-spark2.4)   |
-|---------------|-----------------|-----------------------------------------------------------------------------------|  
 
-### Build and Install the Spark Connector
+## Prerequisites
+
+The following prerequisites are required for building and running in production:
+
+- Java 8
+
+## Build and Install the Spark Connector
 
 This will build the Spark Connector and publish it to your local Maven repository.
 
 ```
-cd
-git clone https://github.com/pravega/spark-connectors
-cd spark-connectors
-./gradlew install
-ls -lhR ~/.m2/repository/io/pravega/pravega-connectors-spark
+$ git clone -b [BRANCH_NAME] https://github.com/pravega/spark-connectors
+$ cd spark-connectors
+$ ./gradlew install
+$ ls -lhR ~/.m2/repository/io/pravega/
 ```
 
-## Documentation
+## Download the Pre-Built Artifacts.
+The pre-built artifacts are published in our [JFrog repository](http://oss.jfrog.org/jfrog-dependencies/io/pravega/)
 
-To learn more about how to build and use the Spark Connector library, refer to
-[Pravega Samples](https://github.com/claudiofahey/pravega-samples/tree/spark-connector-examples/spark-connector-examples).
+
+## Configuration
+
+The following table lists the configurable parameters of the Pravega Spark connector and their default values.
+
+| Parameter | Description | Default |
+| ----- | ----------- | ------ |
+| `allow_create_scope` | When turned on, Pravega scope will be automatically created. Only enable this if Pravega is running in stand-alone mode. | `true` |
+| `allow_create_stream` | When turned on, Pravega stream will be automatically created. | `true` |
+| `controller` |  The URI endpoint of the Pravega controller in the form of `protocol://<hostname/ip>:9090`.| `tcp://localhost:9090` |
+| `default_num_segments` | The default number of segments for a stream. | |
+| `default_retention_duration_milliseconds` | The default time in form of `ms` to decide how much data to retain within a stream. |  |
+| `default_retention_size_bytes` | The default size in the form of `bytes` to decide how much data to retain within a stream.  | |
+| `default_scale_factor` | The default scale factor for a Stream to decide if it should automatically scale its number of segments.   |  |
+| `default_segment_target_rate_bytes_per_sec` | The target rate for a segment in the form of `bytes` per second.| |
+| `default_segment_target_rate_events_per_sec` | The target rate for a segment in the form of `events` per second.| |
+| `end_stream_cut` | The end offset of a stream. | Batch Job: `latest`; Stream Job: `unbounded` |
+| `exactly_once` | Pravega with transaction enabled (exactly-once semantics). | `true` |
+| `metadata` | The metadata reader for getting the a stream(`StreamInfo`) or a scope info(`Streams`).| |
+| `read_after_write_consistency` | Pravega with transaction enabled (exactly-once semantics) in the streaming job. | `true` |
+| `scope` | The Pravega scope containing the data stream. |  |
+| `start_stream_cut` | The start offset of a stream. | Batch Job: `earliest`; Stream Job: `latest` |
+| `stream` | The name of the data stream to read or write. |  |
+| `transaction_timeout_ms` | The time-out value for a transaction in the form of `ms` | `30 * 1000` |
+| `transaction_status_poll_interval_ms` |  The time interval in `ms` for which the transaction status has to be pulled  | `50` |
+
+
+## Examples
+
+To learn more about how to build and use the Spark Connector library with [Pravega](https://www.pravega.io/), refer to
+[Pravega Samples](https://github.com/pravega/pravega-samples/tree/master/spark-connector-examples).
+
+To learn more about how to build and use the Spark Connector library with [Dell EMC Streaming Data Platform](https://www.delltechnologies.com/en-us/storage/streaming-data-platform.htm), refer to
+[Workshop Samples](https://github.com/StreamingDataPlatform/workshop-samples/tree/master/spark-examples).
 
 ## Limitations
 
