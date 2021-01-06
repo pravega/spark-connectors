@@ -14,9 +14,8 @@ with [Apache Spark](http://spark.apache.org/),
 a high-performance analytics engine for batch and streaming data.
 
 The connectors can be used to build end-to-end stream processing pipelines
-(see [Samples](https://github.com/pravega/pravega-samples))
+(see [Samples](https://github.com/pravega/pravega-samples/tree/dev/spark-connector-examples))
 that use Pravega as the stream storage and message bus, and Apache Spark for computation over the streams.
-
 
 ## Features & Highlights
 
@@ -46,24 +45,17 @@ supported versions of Spark and Pravega.
 
 ## Prerequisites
 
-The following prerequisites are required for building and running in production:
+The following prerequisites are required for building and running this connector:
 
 - Java 8
 
-## Build and Install the Spark Connector
+## Examples
 
-This will build the Spark Connector and publish it to your local Maven repository.
+To learn how to build and run Spark applications with the Pravega Spark Connectors, refer to
+[Pravega Samples](https://github.com/pravega/pravega-samples/tree/dev/spark-connector-examples).
 
-```
-$ git clone -b [BRANCH_NAME] https://github.com/pravega/spark-connectors
-$ cd spark-connectors
-$ ./gradlew install
-$ ls -lhR ~/.m2/repository/io/pravega/
-```
-
-## Download the Pre-Built Artifacts.
-The pre-built artifacts are published in our [JFrog repository](http://oss.jfrog.org/jfrog-dependencies/io/pravega/)
-
+To learn how to build and run Spark applications with [Dell EMC Streaming Data Platform](https://www.delltechnologies.com/en-us/storage/streaming-data-platform.htm), refer to
+[Workshop Samples](https://github.com/StreamingDataPlatform/workshop-samples/tree/master/spark-examples).
 
 ## Configuration
 
@@ -71,33 +63,59 @@ The following table lists the configurable parameters of the Pravega Spark conne
 
 | Parameter | Description | Default |
 | ----- | ----------- | ------ |
-| `allow_create_scope` | When turned on, Pravega scope will be automatically created. Only enable this if Pravega is running in stand-alone mode. | `true` |
-| `allow_create_stream` | When turned on, Pravega stream will be automatically created. | `true` |
-| `controller` |  The URI endpoint of the Pravega controller in the form of `protocol://<hostname/ip>:9090`.| `tcp://localhost:9090` |
-| `default_num_segments` | The default number of segments for a stream. | |
-| `default_retention_duration_milliseconds` | The default time in form of `ms` to decide how much data to retain within a stream. |  |
-| `default_retention_size_bytes` | The default size in the form of `bytes` to decide how much data to retain within a stream.  | |
-| `default_scale_factor` | The default scale factor for a Stream to decide if it should automatically scale its number of segments.   |  |
-| `default_segment_target_rate_bytes_per_sec` | The target rate for a segment in the form of `bytes` per second.| |
-| `default_segment_target_rate_events_per_sec` | The target rate for a segment in the form of `events` per second.| |
-| `end_stream_cut` | The end offset of a stream. | Batch Job: `latest`; Stream Job: `unbounded` |
-| `exactly_once` | Pravega with transaction enabled (exactly-once semantics). | `true` |
-| `metadata` | The metadata reader for getting the a stream(`StreamInfo`) or a scope info(`Streams`).| |
-| `read_after_write_consistency` | Pravega with transaction enabled (exactly-once semantics) in the streaming job. | `true` |
+| `allow_create_scope` | If true, the Pravega scope will be automatically created. This must be false when running in Dell EMC Streaming Data Platform. | `true` |
+| `allow_create_stream` | If true, the Pravega stream will be automatically created. | `true` |
+| `controller` |  The URI endpoint of the Pravega controller in the form of `protocol://hostname:port`.| `tcp://localhost:9090` |
+| `default_num_segments` | The default number of segments for a stream. This is ignored if the stream already exists. | |
+| `default_retention_duration_milliseconds` | The default time in form of `ms` to decide how much data to retain within a stream. This is ignored if the stream already exists. |  |
+| `default_retention_size_bytes` | The default size in the form of `bytes` to decide how much data to retain within a stream. This is ignored if the stream already exists.  | |
+| `default_scale_factor` | The default scale factor for a stream to decide if it should automatically scale its number of segments. This is ignored if the stream already exists.  |  |
+| `default_segment_target_rate_bytes_per_sec` | The target rate for a segment in the form of `bytes` per second. This is ignored if the stream already exists. | |
+| `default_segment_target_rate_events_per_sec` | The target rate for a segment in the form of `events` per second. This is ignored if the stream already exists. | |
+| `end_stream_cut` | The end stream cut (offsets) of a stream. Can be `latest`, `unbounded`, or a specific base-64 encoded stream cut. `latest` will be resolved at the start of the job. | Batch Job: `latest`; Stream Job: `unbounded` |
+| `exactly_once` | If true, use Pravega transactions when writing to provide exactly-once semantics. Set to false for reduced write latency. | `true` |
+| `metadata` | If set, a read will return scope or stream metadata instead of the stream data. "Streams" will return a list of streams in the scope. "StreamInfo" will return head and tail stream cuts.| |
+| `read_after_write_consistency` | If true, commits will wait for Pravega to finish committing transactions before completing. | `true` |
 | `scope` | The Pravega scope containing the data stream. |  |
-| `start_stream_cut` | The start offset of a stream. | Batch Job: `earliest`; Stream Job: `latest` |
-| `stream` | The name of the data stream to read or write. |  |
-| `transaction_timeout_ms` | The time-out value for a transaction in the form of `ms` | `30 * 1000` |
-| `transaction_status_poll_interval_ms` |  The time interval in `ms` for which the transaction status has to be pulled  | `50` |
+| `start_stream_cut` | The start stream cut (offsets) of a stream. Can be `earliest`, `latest`, `unbounded`, or a specific base-64 encoded stream cut. `earliest` and `latest` will be resolved at the start of the job. | Batch Job: `earliest`; Stream Job: `latest` |
+| `stream` | The name of the Pravega stream to read or write. |  |
+| `transaction_timeout_ms` | The time-out value for a transaction in the form of `ms`. | Batch Job: `120000` (2 minutes); Stream Job: `30000` |
+| `transaction_status_poll_interval_ms` |  The time interval in `ms` for which the transaction status is polled. This is used only if `read_after_write_consistency` is true. | `50` |
 
+## Configuring Pravega for Exactly-Once
 
-## Examples
+When writing events to Pravega with `exactly_once` set to true (the default), Pravega transactions are used.
+This connector begins a transaction during the execution of each task and commits all transactions
+only at the end of the batch job or at the end of the micro-batch.
+To prevent the Pravega transaction from timing out, you must apply the following configuration.
 
-To learn more about how to build and use the Spark Connector library with [Pravega](https://www.pravega.io/), refer to
-[Pravega Samples](https://github.com/pravega/pravega-samples/tree/master/spark-connector-examples).
+1. The Pravega Controller must be configured with the following settings:
+```
+    pravega-cluster:
+      pravega_options:
+        controller.transaction.maxLeaseValue: "2147483647"    # 24.8 days
+        controller.transaction.ttlHours: "720"                # 30 days
+```
 
-To learn more about how to build and use the Spark Connector library with [Dell EMC Streaming Data Platform](https://www.delltechnologies.com/en-us/storage/streaming-data-platform.htm), refer to
-[Workshop Samples](https://github.com/StreamingDataPlatform/workshop-samples/tree/master/spark-examples).
+2. The Pravega Spark connector writer must be configured with a reasonable value for `transaction_timeout_ms`.
+   This should be the maximum number of milliseconds that you expect the Spark job to take.
+   The maximum value that is known to work is 64800000 ms (18 hours).
+
+## Build and Install the Pravega Spark Connectors
+
+This will build the Pravega Spark Connectors and publish it to your local Maven repository.
+
+```shell script
+$ git clone https://github.com/pravega/spark-connectors
+$ cd spark-connectors
+$ git checkout $BRANCH   # optional
+$ ./gradlew install
+$ ls -lhR ~/.m2/repository/io/pravega/
+```
+
+## Pre-Built Artifacts
+
+The pre-built artifacts are published in our [JFrog repository](http://oss.jfrog.org/jfrog-dependencies/io/pravega/).
 
 ## Limitations
 
