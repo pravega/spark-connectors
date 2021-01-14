@@ -10,9 +10,9 @@
 language: scala
 install: true
 jdk:
-  - openjdk8
+  - openjdk11
 scala:
-  - 2.11.8
+  - 2.12.13
 
 # the secure configurations in env: section is for BINTRAY_USER=<USER> and BINTRAY_KEY=<KEY> properties
 # which will be used for publishing artifacts to snapshot repository
