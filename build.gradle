@@ -70,18 +70,14 @@ dependencies {
     compile group: 'org.scala-lang', name: 'scala-reflect', version: scalaVersion
     compile group: 'org.scala-lang', name: 'scala-compiler', version: scalaVersion
     compile group: 'org.scala-lang.modules', name: 'scala-java8-compat_2.12', version: scalaJava8CompatVersion
-    compile group: 'com.jsuereth', name: 'scala-arm_2.12', version: '2.0'
-    compile group: 'org.scala-lang.modules', name: 'scala-java8-compat_2.12', version: '0.9.1'
-
+    compile group: 'com.jsuereth', name: 'scala-arm_2.12', version: scalaArmVersion
 
     compileOnly group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
-
     shadowOnly group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
 
     testCompile group: 'junit', name: 'junit', version: junitVersion
     testCompile group: 'io.pravega', name: 'pravega-standalone', version: pravegaVersion
     testCompile group: 'org.scalatest', name: 'scalatest_2.12', version: scalaTestVersion
-    testRuntimeOnly group: 'org.pegdown', name: 'pegdown', version: pegDownVersion
     testCompile group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
     testCompile group: 'org.apache.spark', name: 'spark-core_2.12', version: sparkVersion, classifier: 'tests'
     testCompile group: 'org.apache.spark', name: 'spark-catalyst_2.12', version: sparkVersion, classifier: 'tests'
@@ -100,6 +96,7 @@ configurations {
 }
 
 test {
+    test.reports.html.enabled = false
     dependsOn 'cleanTest'
 }
 
@@ -117,6 +114,7 @@ shadowJar {
     relocate "okio", "io.pravega.shaded.okio"
     relocate "io.opencensus", "io.pravega.shaded.io.opencensus"
     relocate "io.netty", "io.pravega.shaded.io.netty"
+    relocate "com.fasterxml.jackson", "io.pravega.shaded.com.fasterxml.jackson"
     relocate 'META-INF/native/libnetty', 'META-INF/native/libio_pravega_shaded_netty'
     relocate 'META-INF/native/netty', 'META-INF/native/io_pravega_shaded_netty'
 }
