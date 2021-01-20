@@ -84,16 +84,31 @@ class SetupUtils extends Logging {
   }
 
   /**
-    * Fetch the controller endpoint for this cluster.
+    * Fetch the controller endpoint for the cluster.
     *
     * @return URI The controller endpoint to connect to this cluster.
     */
   def getControllerUri: URI = controllerUri
 
+  /**
+    * Fetch the test Scope name.
+    *
+    * @return String The test Scope name.
+    */
   def getScope: String = scope
 
+  /**
+    * Fetch the Controller for the cluster.
+    *
+    * @return Controller The instance of the Controller client.
+    */
   def getController: Controller = controller
 
+  /**
+    * Fetch the Event Stream Client Factory for the cluster.
+    *
+    * @return EventStreamClientFactory The instance of the Client Factory.
+    */
   def getClientFactory: EventStreamClientFactory = clientFactory
 
   /**
