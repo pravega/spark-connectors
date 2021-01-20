@@ -17,7 +17,6 @@ import com.google.common.base.Preconditions
 import io.pravega.client.admin.{StreamInfo, StreamManager}
 import io.pravega.client.stream._
 import io.pravega.client.stream.impl.UTF8StringSerializer
-import io.pravega.test.integration.utils.SetupUtils
 import org.apache.spark.internal.Logging
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.concurrent.PatienceConfiguration.Timeout

@@ -36,6 +36,13 @@ that use Pravega as the stream storage and message bus, and Apache Spark for com
 
   - Reader supports reassembling chunked events to support events of 2 GiB.
 
+| Spark Version | Pravega Version | Java Version To Build Connector | Java Version To Run Connector | Git Branch                                                                        |
+|---------------|-----------------|---------------------------------|-------------------------------|-----------------------------------------------------------------------------------|
+| 3.0           | 0.9             | Java 11                         | Java 8 or 11                  | [master](https://github.com/pravega/spark-connectors)                             |
+| 2.4           | 0.9             | Java 8                          | Java 8                        | [r0.9-spark2.4](https://github.com/pravega/spark-connectors/tree/r0.9-spark2.4)   |
+| 3.0           | 0.8             | Java 8                          | Java 8                        | [r0.8-spark3.0](https://github.com/pravega/spark-connectors/tree/r0.8-spark3.0)   |
+| 2.4           | 0.8             | Java 8                          | Java 8                        | [r0.8-spark2.4](https://github.com/pravega/spark-connectors/tree/r0.8-spark2.4)   |
+- Java 8 or 11 (see compatibility matrix)
 ## Limitations
 
   - The current implementation of this connector does *not* guarantee that events with the same routing key
