@@ -76,7 +76,6 @@ dependencies {
     shadowOnly group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion
 
     testCompile group: 'junit', name: 'junit', version: junitVersion
-    testCompile group: 'io.pravega', name: 'pravega-standalone', version: pravegaVersion
     testCompile group: 'org.scalatest', name: 'scalatest_2.11', version: scalaTestVersion
     testCompile group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion
     testCompile group: 'org.apache.spark', name: 'spark-core_2.11', version: sparkVersion, classifier: 'tests'
@@ -85,7 +84,6 @@ dependencies {
     testCompile group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: jacksonVersion
     testCompile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
     testCompile group: 'com.fasterxml.jackson.module', name: 'jackson-module-scala_2.11', version: jacksonVersion
-    testCompile group: 'io.pravega', name: 'pravega-test-integration', version: pravegaVersion
 }
 
 configurations {
@@ -97,6 +95,8 @@ configurations {
 
 test {
     test.reports.html.enabled = false
+    //allow system properties to be passed to the test program
+    // for e.g., to use standalone Pravega for running the system test "./gradlew clean build -Dpravega.uri=tcp://localhost:9090"
     systemProperties = System.properties
     dependsOn 'cleanTest'
 }
