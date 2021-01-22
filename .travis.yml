@@ -10,9 +10,9 @@
 language: scala
 install: true
 jdk:
-  - openjdk8
+  - openjdk11
 scala:
-  - 2.11.8
+  - 2.11.12
 
 # the secure configurations in env: section is for BINTRAY_USER=<USER> and BINTRAY_KEY=<KEY> properties
 # which will be used for publishing artifacts to snapshot repository
@@ -36,7 +36,7 @@ stages:
 jobs:
   include:
     - stage: build
-      script: ./gradlew clean build
+      script: ./gradlew clean build -x test
 
     - stage: snapshot
       if: (branch = master OR branch =~ /^r[0-9]+\.[0-9]+/) AND NOT (type = pull_request)

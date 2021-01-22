@@ -36,6 +36,13 @@ that use Pravega as the stream storage and message bus, and Apache Spark for com
 
   - Reader supports reassembling chunked events to support events of 2 GiB.
 
+| Spark Version | Pravega Version | Java Version To Build Connector | Java Version To Run Connector | Git Branch                                                                        |
+|---------------|-----------------|---------------------------------|-------------------------------|-----------------------------------------------------------------------------------|
+| 3.0           | 0.9             | Java 11                         | Java 8 or 11                  | [master](https://github.com/pravega/spark-connectors)                             |
+| 2.4           | 0.9             | Java 8                          | Java 8                        | [r0.9-spark2.4](https://github.com/pravega/spark-connectors/tree/r0.9-spark2.4)   |
+| 3.0           | 0.8             | Java 8                          | Java 8                        | [r0.8-spark3.0](https://github.com/pravega/spark-connectors/tree/r0.8-spark3.0)   |
+| 2.4           | 0.8             | Java 8                          | Java 8                        | [r0.8-spark2.4](https://github.com/pravega/spark-connectors/tree/r0.8-spark2.4)   |
+- Java 8 or 11 (see compatibility matrix)
 ## Limitations
 
   - The current implementation of this connector does *not* guarantee that events with the same routing key
@@ -63,6 +70,30 @@ cd spark-connectors
 ./gradlew install
 ls -lhR ~/.m2/repository/io/pravega/pravega-connectors-spark
 ```
+
+### Test the Spark Connector
+As Pravega 0.9 runs on Java 11+ while spark 2.4 runs on Java 8, it needs to connect to a standalone Pravega instance for the test.
+1. Start Pravega 0.9 using Java 11.
+    1. Checkout the latest source code from [Pravage branch r0.9](https://github.com/pravega/pravega/tree/r0.9).
+       ```
+       git clone https://github.com/pravega/pravega.git
+       cd pravega
+       git checkout r0.9 
+       ```
+    2. Start Pravega standalone instance using Java 11.
+       ```
+       JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64 ./gradlew startStandalone
+       ```
+
+2. Run spark-connectors/gradlew test using Java 8. 
+   By default, the test will connect to Pravega instance listening on tcp://localhost:9090.
+    ```
+    JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 ./gradlew clean build
+    ```
+   In case to connect the Pravega instance listening on some other port or remote server for the test, just specify the pravega.uri value accordingly.
+    ```
+    JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 ./gradlew clean build -Dpravega.uri=tcp://server:port
+    ```
 
 ## Documentation
 
