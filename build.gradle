@@ -69,21 +69,21 @@ dependencies {
     compile group: 'org.scala-lang', name: 'scala-library', version: scalaVersion
     compile group: 'org.scala-lang', name: 'scala-reflect', version: scalaVersion
     compile group: 'org.scala-lang', name: 'scala-compiler', version: scalaVersion
-    compile group: 'org.scala-lang.modules', name: 'scala-java8-compat_2.11', version: scalaJava8CompatVersion
-    compile group: 'com.jsuereth', name: 'scala-arm_2.11', version: scalaArmVersion
+    compile group: 'org.scala-lang.modules', name: 'scala-java8-compat_2.12', version: scalaJava8CompatVersion
+    compile group: 'com.jsuereth', name: 'scala-arm_2.12', version: scalaArmVersion
 
-    compileOnly group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion
-    shadowOnly group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion
+    compileOnly group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
+    shadowOnly group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
 
     testCompile group: 'junit', name: 'junit', version: junitVersion
-    testCompile group: 'org.scalatest', name: 'scalatest_2.11', version: scalaTestVersion
-    testCompile group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion
-    testCompile group: 'org.apache.spark', name: 'spark-core_2.11', version: sparkVersion, classifier: 'tests'
-    testCompile group: 'org.apache.spark', name: 'spark-catalyst_2.11', version: sparkVersion, classifier: 'tests'
-    testCompile group: 'org.apache.spark', name: 'spark-sql_2.11', version: sparkVersion, classifier: 'tests'
+    testCompile group: 'org.scalatest', name: 'scalatest_2.12', version: scalaTestVersion
+    testCompile group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
+    testCompile group: 'org.apache.spark', name: 'spark-core_2.12', version: sparkVersion, classifier: 'tests'
+    testCompile group: 'org.apache.spark', name: 'spark-catalyst_2.12', version: sparkVersion, classifier: 'tests'
+    testCompile group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion, classifier: 'tests'
     testCompile group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: jacksonVersion
     testCompile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
-    testCompile group: 'com.fasterxml.jackson.module', name: 'jackson-module-scala_2.11', version: jacksonVersion
+    testCompile group: 'com.fasterxml.jackson.module', name: 'jackson-module-scala_2.12', version: jacksonVersion
 }
 
 configurations {
