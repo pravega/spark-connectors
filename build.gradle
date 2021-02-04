@@ -45,17 +45,15 @@ tasks.withType(JavaCompile) {
 
 repositories {
     mavenLocal()
+    jcenter()
+    mavenCentral()
+    maven { url "https://repository.apache.org/snapshots" }
+    maven { url "https://oss.sonatype.org/content/repositories/snapshots" }
+    maven { url "https://oss.jfrog.org/jfrog-dependencies" }
     if (findProperty("repositoryUrl")) {
         maven {
             url findProperty("repositoryUrl")
         }
-    }
-    else {
-        jcenter()
-        mavenCentral()
-        maven { url "https://repository.apache.org/snapshots" }
-        maven { url "https://oss.sonatype.org/content/repositories/snapshots" }
-        maven { url "https://oss.jfrog.org/jfrog-dependencies" }
     }
 }
 
