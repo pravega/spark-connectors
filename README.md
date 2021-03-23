@@ -31,7 +31,7 @@ To learn more about Pravega, visit https://pravega.io
 
 ## Documentation
 
-- [Spark Connectors for Pravega](documentation/src/docs/index.md)
+- [Spark Connectors for Pravega](documentation/src/docs/overview.md)
 
 ## Compatibility Matrix
 
