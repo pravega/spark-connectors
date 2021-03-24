@@ -13,16 +13,6 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-import { IfHaveFeature, IfMissingFeature } from 'nautilus-docs';
-
-<IfHaveFeature feature="nautilus">
-
-:::tip Streaming Data Platform
-If you are using **Dell EMC Streaming Data Platform**, you should use [Getting Started with Spark on SDP](../sdp/analytics/spark/getting-started.md) instead of this guide.
-:::
-
-</IfHaveFeature>
-
 You can run Apache Spark applications written in Java, Scala, or Python. Using Python is the easiest to get started.
 
 1. [Prepare Development Environment](prepare-development-environment.md)
