@@ -2,6 +2,10 @@
 title: Prepare Development Environment
 ---
 
+import PrepareDevelopmentEnvironmentPrefix from '../snippets/spark-connectors/prepare-development-environment-prefix.md';
+
+<PrepareDevelopmentEnvironmentPrefix />
+
 ## Prerequisites
 
 - **Operating System**: Spark runs on both Windows and UNIX-like systems (e.g. Linux, Mac OS), and it should run on any platform that runs a supported version of Java. The steps below show the specific steps for Ubuntu 20.04 LTS. Similar steps can be executed on other operating systems.

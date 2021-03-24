@@ -57,4 +57,8 @@ In this tutorial, we'll use [stream_pravega_to_console.py](https://github.com/pr
         .option("checkpointLocation", checkPointLocation)
     ```
 
+import CheckpointDir from '../snippets/spark-connectors/checkpoint-dir.md';
+
+<CheckpointDir />
+
 To run this application, refer to the steps in [Tutorial 1](tutorial-1-writing-to-pravega.md#running-the-application-locally).

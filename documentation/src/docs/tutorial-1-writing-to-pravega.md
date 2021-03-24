@@ -94,6 +94,6 @@ Follow these steps to run this application locally and write to your local devel
 
    This job will continue to run and write events until stopped.
 
-import { Snippet } from 'nautilus-docs';
+import DeployPythonSpark from '../snippets/spark-connectors/deploy-python-spark.md';
 
-Snippet: <Snippet index="DeploySparkPython" />
+<DeployPythonSpark />
