@@ -10,9 +10,17 @@ module.exports = {
     mainSidebar: [
         'overview',
         'getting-started',
+        'prepare-development-environment',
+        {
+            'Tutorials': [
+                'tutorial-1-writing-to-pravega',
+                'tutorial-2-reading-from-pravega',
+            ],
+        },
         'samples',
         'configuration',
         'build-connector',
         'limitations',
+        'learn-more',
     ]
 };
