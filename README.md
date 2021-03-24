@@ -44,6 +44,10 @@ The [master](https://github.com/pravega/spark-connectors) branch will always hav
 | 3.0           | 0.8             | Java 8                          | Java 8                        | [r0.8-spark3.0](https://github.com/pravega/spark-connectors/tree/r0.8-spark3.0)   |
 | 2.4           | 0.8             | Java 8                          | Java 8                        | [r0.8-spark2.4](https://github.com/pravega/spark-connectors/tree/r0.8-spark2.4)   |
 
+## Support
+
+Don’t hesitate to ask! Contact the developers and community on [Slack](https://pravega-io.slack.com/) ([signup](https://pravega-slack-invite.herokuapp.com/)) if you need any help. Open an issue if you found a bug on [Github Issues](https://github.com/pravega/spark-connectors/issues).
+
 ## About
 
 Spark Connectors for Pravega is 100% open source and community-driven. All components are available under [Apache 2 License](https://www.apache.org/licenses/LICENSE-2.0.html) on GitHub.
