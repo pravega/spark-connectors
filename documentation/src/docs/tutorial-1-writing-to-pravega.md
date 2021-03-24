@@ -2,6 +2,14 @@
 title: Tutorial 1 - Writing to Pravega
 ---
 
+<!--
+Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
+
 A simple Python Spark (PySpark) applications will consist of a single `.py` file. Our first application will be [stream_generated_data_to_pravega.py](https://github.com/pravega/pravega-samples/blob/spark-connector-examples/spark-connector-examples/src/main/python/stream_generated_data_to_pravega.py) and it will continuously write a timestamp to a Pravega stream.
 
 ## Code Walkthrough
