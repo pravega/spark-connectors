@@ -1,7 +1,3 @@
----
-title: Samples
----
-
 <!--
 Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
 
@@ -11,6 +7,7 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
+# Samples
 
 Once you have gone through the [Getting Started](getting-started.md) guide, you are ready to run the other samples.
 

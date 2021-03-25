@@ -1,7 +1,3 @@
----
-title: Limitations
----
-
 <!--
 Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
 
@@ -11,6 +7,7 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
+# Limitations
 
 - This connector does *not* guarantee that events with the same routing key are returned in a single partition. If your application requires this, you must repartition the dataframe by the routing key and sort within the partition by segment_id and offset.
 

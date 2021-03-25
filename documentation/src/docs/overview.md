@@ -1,8 +1,3 @@
----
-title: Spark Connectors for Pravega
-sidebar_label: Overview
----
-
 <!--
 Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
 
@@ -12,6 +7,7 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
+# Spark Connectors for Pravega
 
 This documentation describes the connector API and usage to read and write [Pravega](http://pravega.io/) streams with [Apache Spark](http://spark.apache.org/).
 
@@ -26,7 +22,6 @@ Build end-to-end stream processing and batch pipelines that use Pravega as the s
 - [Limitations](limitations.md)
 - [Releases](#releases)
 - [Pre-Built Artifacts](#pre-built-artifacts)
-- [Learn More](learn-more.md)
 - [Support](#support)
 - [About](#about)
 

@@ -1,7 +1,3 @@
----
-title: Tutorial 2 - Reading from Pravega
----
-
 <!--
 Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -9,6 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
+# Tutorial 2 - Reading from Pravega
 
 In this tutorial, we'll use [stream_pravega_to_console.py](https://github.com/pravega/pravega-samples/blob/spark-connector-examples/spark-connector-examples/src/main/python/stream_pravega_to_console.py).
 
@@ -64,9 +61,5 @@ In this tutorial, we'll use [stream_pravega_to_console.py](https://github.com/pr
     ```python
         .option("checkpointLocation", checkPointLocation)
     ```
-
-import CheckpointDir from '../snippets/spark-connectors/checkpoint-dir.md';
-
-<CheckpointDir />
 
 To run this application, refer to the steps in [Tutorial 1](tutorial-1-writing-to-pravega.md#running-the-application-locally).
