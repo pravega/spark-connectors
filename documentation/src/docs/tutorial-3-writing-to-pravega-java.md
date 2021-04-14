@@ -14,7 +14,9 @@ In this tutorial, we will create a Java version of `stream_generated_data_to_pra
 
 ## Prerequisites
 
-- **Gradle**: This tutorial uses Gradle to build the Java package. If you are using Ubuntu, you may use these steps to install it.
+- **Java 11**: Java 11 JDK is required. Refer to [Prepare Development Environment](prepare-development-environment.md#prerequisites).
+
+- **Gradle**: This tutorial uses [Gradle](https://gradle.org/) to build the Java package. If you are using Ubuntu, you may use this command to install it.
 
     ```shell
     sudo apt-get install gradle
@@ -59,7 +61,7 @@ In this tutorial, we will create a Java version of `stream_generated_data_to_pra
 
 2. Create `build.gradle`.
 
-    ```gradle title="build.gradle"
+    ```groovy title="build.gradle"
     apply plugin: "java"
 
     sourceCompatibility = "1.8"
