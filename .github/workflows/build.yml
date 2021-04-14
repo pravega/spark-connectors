@@ -12,7 +12,7 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
 
@@ -52,7 +52,7 @@ jobs:
   snapshot:
     name: Publish snapshot
     needs: [build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     # only publish the snapshot when it is a push on the master or the release branch (starts with r0.x or r1.x)
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/r0.') || startsWith(github.ref, 'refs/heads/r1.')) }}
     env:
