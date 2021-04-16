@@ -15,6 +15,7 @@ module.exports = {
             'Tutorials': [
                 'tutorial-1-writing-to-pravega',
                 'tutorial-2-reading-from-pravega',
+                'tutorial-3-writing-to-pravega-java',
             ],
         },
         'samples',

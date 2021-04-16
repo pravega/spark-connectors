@@ -19,4 +19,5 @@ You can run Apache Spark applications written in Java, Scala, or Python. Using P
 2. Tutorials
    1. [Tutorial 1 - Writing to Pravega](tutorial-1-writing-to-pravega.md)
    2. [Tutorial 2 - Reading from Pravega](tutorial-2-reading-from-pravega.md)
+   3. [Tutorial 3 - Writing to Pravega using Java](tutorial-3-writing-to-pravega-java.md)
 3. [Learn More](learn-more.md)
