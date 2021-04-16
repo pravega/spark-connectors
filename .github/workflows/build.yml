@@ -8,6 +8,7 @@ on: [push, pull_request, workflow_dispatch]
 env:
   GRADLE_OPTS: "-Xms128m -Xmx1024m"
   ORG_GRADLE_PROJECT_logOutput: true
+  SPARK_LOCAL_IP: "127.0.0.1"
 
 jobs:
   build:
