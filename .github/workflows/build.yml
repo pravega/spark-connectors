@@ -53,7 +53,7 @@ jobs:
         run: ./gradlew clean build
 
   snapshot:
-    name: Publish snapshot
+    name: Publish snapshot to Github Packages
     needs: [build]
     runs-on: ubuntu-20.04
     # only publish the snapshot when it is a push on the master or the release branch (starts with r0.x or r1.x)
@@ -79,5 +79,5 @@ jobs:
           path: ./*
           key: ${{ github.run_id }}
 
-      - name: Publish to repo
-        run: ./gradlew publishToRepo -PpublishUrl=jcenterSnapshot -PpublishUsername=$BINTRAY_USER -PpublishPassword=$BINTRAY_KEY
+      - name: Publish to Github Packages
+        run: ./gradlew publishToRepo -PpublishUrl=https://maven.pkg.github.com/${{github.repository}} -PpublishUsername=${{github.actor}} -PpublishPassword=${{secrets.GITHUB_TOKEN}}

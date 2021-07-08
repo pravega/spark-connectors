@@ -10,7 +10,10 @@
 
 buildscript {
     repositories {
-        jcenter()
+        mavenCentral()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
     }
     dependencies {
         classpath "com.github.jengelman.gradle.plugins:shadow:${shadowGradlePlugin}"
@@ -45,11 +48,16 @@ tasks.withType(JavaCompile) {
 
 repositories {
     mavenLocal()
-    jcenter()
     mavenCentral()
+    maven {
+        url "https://maven.pkg.github.com/pravega/pravega"
+        credentials {
+            username = "pravega-public"
+            password = "\u0067\u0068\u0070\u005F\u0048\u0034\u0046\u0079\u0047\u005A\u0031\u006B\u0056\u0030\u0051\u0070\u006B\u0079\u0058\u006D\u0035\u0063\u0034\u0055\u0033\u006E\u0032\u0065\u0078\u0039\u0032\u0046\u006E\u0071\u0033\u0053\u0046\u0076\u005A\u0049"
+        }
+    }
     maven { url "https://repository.apache.org/snapshots" }
     maven { url "https://oss.sonatype.org/content/repositories/snapshots" }
-    maven { url "https://oss.jfrog.org/jfrog-dependencies" }
     if (findProperty("repositoryUrl")) {
         maven {
             url findProperty("repositoryUrl")
@@ -59,6 +67,10 @@ repositories {
 
 configurations {
     shadowOnly {
+    }
+    all {
+        testImplementation.extendsFrom(compileOnly)
+        testImplementation.exclude group: 'io.netty', module: 'netty-all'
     }
 }
 
@@ -73,17 +85,33 @@ dependencies {
     compileOnly group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
     shadowOnly group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
 
-    testCompile group: 'junit', name: 'junit', version: junitVersion
-    testCompile group: 'io.pravega', name: 'pravega-standalone', version: pravegaVersion
-    testCompile group: 'org.scalatest', name: 'scalatest_2.12', version: scalaTestVersion
-    testCompile group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
-    testCompile group: 'org.apache.spark', name: 'spark-core_2.12', version: sparkVersion, classifier: 'tests'
-    testCompile group: 'org.apache.spark', name: 'spark-catalyst_2.12', version: sparkVersion, classifier: 'tests'
-    testCompile group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion, classifier: 'tests'
-    testCompile group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: jacksonVersion
-    testCompile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
-    testCompile group: 'com.fasterxml.jackson.module', name: 'jackson-module-scala_2.12', version: jacksonVersion
-    testCompile group: 'io.pravega', name: 'pravega-test-integration', version: pravegaVersion
+    testImplementation group: 'junit', name: 'junit', version: junitVersion
+    testImplementation (group: 'io.pravega', name: 'pravega-standalone', version: pravegaVersion) {
+        exclude group: 'org.apache.zookeeper', module: 'zookeeper'
+    }
+    testImplementation (group: 'org.apache.zookeeper', name: 'zookeeper') {
+        version {
+            strictly '3.5.9'
+        }
+    }
+    testImplementation (group: 'io.netty', name: 'netty-all') {
+        version {
+            strictly '4.1.65.Final'
+        }
+    }
+    testImplementation group: 'org.scalatest', name: 'scalatest_2.12', version: scalaTestVersion
+    testImplementation (group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion) {
+        exclude group: 'org.apache.zookeeper', module: 'zookeeper'
+    }
+    testImplementation (group: 'org.apache.spark', name: 'spark-core_2.12', version: sparkVersion, classifier: 'tests') {
+        exclude group: 'org.apache.zookeeper', module: 'zookeeper'
+    }
+    testImplementation group: 'org.apache.spark', name: 'spark-catalyst_2.12', version: sparkVersion, classifier: 'tests'
+    testImplementation group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion, classifier: 'tests'
+    testImplementation group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: jacksonVersion
+    testImplementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
+    testImplementation group: 'com.fasterxml.jackson.module', name: 'jackson-module-scala_2.12', version: jacksonVersion
+    testImplementation group: 'io.pravega', name: 'pravega-test-integration', version: pravegaVersion
 }
 
 configurations {
