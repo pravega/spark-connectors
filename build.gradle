@@ -86,26 +86,15 @@ dependencies {
     shadowOnly group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
 
     testImplementation group: 'junit', name: 'junit', version: junitVersion
-    testImplementation (group: 'io.pravega', name: 'pravega-standalone', version: pravegaVersion) {
-        exclude group: 'org.apache.zookeeper', module: 'zookeeper'
-    }
+    testImplementation group: 'io.pravega', name: 'pravega-standalone', version: pravegaVersion
     testImplementation (group: 'org.apache.zookeeper', name: 'zookeeper') {
         version {
             strictly '3.5.9'
         }
     }
-    testImplementation (group: 'io.netty', name: 'netty-all') {
-        version {
-            strictly '4.1.65.Final'
-        }
-    }
     testImplementation group: 'org.scalatest', name: 'scalatest_2.12', version: scalaTestVersion
-    testImplementation (group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion) {
-        exclude group: 'org.apache.zookeeper', module: 'zookeeper'
-    }
-    testImplementation (group: 'org.apache.spark', name: 'spark-core_2.12', version: sparkVersion, classifier: 'tests') {
-        exclude group: 'org.apache.zookeeper', module: 'zookeeper'
-    }
+    testImplementation group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
+    testImplementation group: 'org.apache.spark', name: 'spark-core_2.12', version: sparkVersion, classifier: 'tests'
     testImplementation group: 'org.apache.spark', name: 'spark-catalyst_2.12', version: sparkVersion, classifier: 'tests'
     testImplementation group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion, classifier: 'tests'
     testImplementation group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: jacksonVersion
