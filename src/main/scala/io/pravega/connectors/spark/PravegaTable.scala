@@ -8,7 +8,7 @@ import org.apache.spark.sql.connector.catalog.{SupportsRead, SupportsWrite, Tabl
 import org.apache.spark.sql.connector.read.ScanBuilder
 import org.apache.spark.sql.connector.write.streaming.StreamingWrite
 import org.apache.spark.sql.connector.write.{BatchWrite, LogicalWriteInfo, SupportsTruncate, WriteBuilder}
-import org.apache.spark.sql.internal.connector.SupportsStreamingUpdate
+import org.apache.spark.sql.internal.connector.SupportsStreamingUpdateAsAppend
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
@@ -30,7 +30,7 @@ class PravegaTable extends Table with SupportsWrite with SupportsRead with Loggi
   }
 
   override def newWriteBuilder(info: LogicalWriteInfo): WriteBuilder = {
-    new WriteBuilder with SupportsTruncate with SupportsStreamingUpdate {
+    new WriteBuilder with SupportsTruncate with SupportsStreamingUpdateAsAppend {
       private val inputSchema: StructType = info.schema()
       private val options = info.options();
       private val parameters = options.asScala.toMap
@@ -114,8 +114,6 @@ class PravegaTable extends Table with SupportsWrite with SupportsRead with Loggi
       }
 
       override def truncate(): WriteBuilder = this
-      override def update(): WriteBuilder = this
-
     }
   }
 }
