@@ -98,7 +98,7 @@ tasks.withType(Upload) {
             }
         }
 
-        pom.scopeMappings.mappings.remove(configurations.testCompile)
+        pom.scopeMappings.mappings.remove(configurations.testImplementation)
 
         pom.withXml { xml ->
             // add the 'provided' dependencies based on the 'shadowOnly' configuration
