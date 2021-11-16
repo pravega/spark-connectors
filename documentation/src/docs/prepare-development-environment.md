@@ -9,6 +9,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
+import versions from '@site/versions';
 import { IfHaveFeature, IfMissingFeature, SDPVersion } from 'nautilus-docs';
 
 import PrepareDevelopmentEnvironmentPrefix from '../snippets/spark-connectors/prepare-development-environment-prefix.md';
@@ -36,15 +37,15 @@ import PrepareDevelopmentEnvironmentPrefix from '../snippets/spark-connectors/pr
 
 This will run a development instance of Pravega locally. The transaction parameters allow transactions to remain open for up to 30 days without lease renewals.
 
-```shell
-cd
+<pre><code {...{ "className": "language-shell" }}>
+{`cd
 git clone https://github.com/pravega/pravega
 cd pravega
-git checkout r0.9
-./gradlew startStandalone \
-    -Dcontroller.transaction.lease.count.max=2592000000 \
-    -Dcontroller.transaction.execution.timeBound.days=30
-```
+git checkout ${versions['pravega-branch']}
+./gradlew startStandalone \\
+    -Dcontroller.transaction.lease.count.max=2592000000 \\
+    -Dcontroller.transaction.execution.timeBound.days=30`}
+</code></pre>
 
 ## Install Apache Spark
 

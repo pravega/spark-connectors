@@ -9,6 +9,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
+import versions from '@site/versions';
 
 A simple Python Spark (PySpark) application will consist of a single `.py` file. Our first application will be [stream_generated_data_to_pravega.py](https://github.com/pravega/pravega-samples/blob/spark-connector-examples/spark-connector-examples/src/main/python/stream_generated_data_to_pravega.py) and it will continuously write a timestamp to a Pravega stream.
 
@@ -90,15 +91,15 @@ Follow these steps to run this application locally and write to your local devel
 
 2. To run this application locally and write to your local development installation of Pravega, we'll use `spark-submit --master 'local[2]'`. This will start a Spark mini-cluster on your local system and use 2 CPUs.
 
-    ```shell
-    spark-submit \
-      --master 'local[2]' \
-      --driver-memory 4g \
-      --executor-memory 4g \
-      --total-executor-cores 1 \
-      --packages io.pravega:pravega-connectors-spark-3.0_2.12:0.9.0 \
-      stream_generated_data_to_pravega.py
-    ```
+<pre><code {...{ "className": "language-shell" }}>
+{`spark-submit \\
+  --master 'local[2]' \\
+  --driver-memory 4g \\
+  --executor-memory 4g \\
+  --total-executor-cores 1 \\
+  --packages io.pravega:pravega-connectors-spark-3.0_2.12:${versions['spark-connectors']} \\
+  stream_generated_data_to_pravega.py`}
+</code></pre>
 
    This job will continue to run and write events until stopped.
 
