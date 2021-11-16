@@ -11,6 +11,7 @@
 build/
 metastore_db/
 out/
+bin/
 spark-warehouse/
 travis.log
 *input.txt
