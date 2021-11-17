@@ -10,12 +10,10 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 import versions from '@site/versions';
-import { IfHaveFeature, IfMissingFeature, SDPVersion } from 'nautilus-docs';
 
 import PrepareDevelopmentEnvironmentPrefix from '../snippets/spark-connectors/prepare-development-environment-prefix.md';
-<IfHaveFeature feature="nautilus">
+
 <PrepareDevelopmentEnvironmentPrefix />
-</IfHaveFeature>
 
 ## Prerequisites
 
