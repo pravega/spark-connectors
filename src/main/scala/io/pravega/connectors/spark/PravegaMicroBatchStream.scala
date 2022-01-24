@@ -107,7 +107,7 @@ class PravegaMicroBatchStream(
 
   override def latestOffset(start: Offset, readLimit: ReadLimit): Offset = {
     if(readLimit.isInstanceOf[ReadAllAvailable]) {
-      PravegaSourceOffset(initialStreamInfo.getTailStreamCut)
+      PravegaSourceOffset(streamManager.getStreamInfo(scopeName, streamName).getTailStreamCut)
     } else {
       val maxRows = readLimit.asInstanceOf[ReadMaxRows].maxRows()
       var event: EventRead[ByteBuffer] = null
@@ -167,17 +167,17 @@ class PravegaMicroBatchStream(
 
   override def stop(): Unit = {
     streamManager.close()
-    if (readerGroup != null) {
-      readerGroup.close()
-    }
-    if (readerGroupManager != null) {
-      readerGroupManager.close()
-    }
     if (eventReader != null) {
       eventReader.close()
     }
     if (clientFactory != null) {
       clientFactory.close()
+    }
+    if (readerGroup != null) {
+      readerGroup.close()
+    }
+    if (readerGroupManager != null) {
+      readerGroupManager.close()
     }
   }
 
