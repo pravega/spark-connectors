@@ -99,4 +99,3 @@ class PravegaScan(options: CaseInsensitiveStringMap) extends Scan with Logging {
   }
 
 }
-

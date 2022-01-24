@@ -2,12 +2,16 @@
 *.iml
 *.iws
 *.log
+.bloop/
 .classpath
 .DS_Store
 .gradle/
 .idea/
+.metals/
 .project
 .settings
+.vscode/
+bin/
 build/
 metastore_db/
 out/

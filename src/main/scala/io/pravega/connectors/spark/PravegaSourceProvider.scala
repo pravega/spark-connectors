@@ -84,6 +84,7 @@ object PravegaSourceProvider extends Logging {
   private[spark] val DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY = "default_retention_duration_milliseconds"
   private[spark] val DEFAULT_RETENTION_SIZE_BYTES_OPTION_KEY = "default_retention_size_bytes"
   private[spark] val EXACTLY_ONCE = "exactly_once"
+  private[spark] val MAX_EVENTS_PER_TRIGGER = "max_events_per_trigger"
 
   private[spark] val STREAM_CUT_EARLIEST = "earliest"
   private[spark] val STREAM_CUT_LATEST = "latest"
@@ -200,6 +201,11 @@ object PravegaSourceProvider extends Logging {
     val retentionMilliseconds = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY)
     if (retentionMilliseconds.isDefined && (Try(retentionMilliseconds.get.toInt).isFailure || retentionMilliseconds.get.toInt < 0)) {
       throw new IllegalArgumentException(s"Retention time should be an integer morethan or equal to zero milliseconds")
+    }
+
+    val maxEventsPerTrigger = caseInsensitiveParams.get(PravegaSourceProvider.MAX_EVENTS_PER_TRIGGER)
+    if (maxEventsPerTrigger.isDefined && (Try(maxEventsPerTrigger.get.toInt).isFailure || maxEventsPerTrigger.get.toInt < 1)) {
+      throw new IllegalArgumentException(s"Max events per trigger should be an integer more than or equal to one")
     }
   }
 

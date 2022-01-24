@@ -17,15 +17,19 @@
 
 package io.pravega.connectors.spark
 
-import io.pravega.client.admin.StreamManager
-import io.pravega.client.stream.{Stream, StreamCut}
+import java.nio.ByteBuffer;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.admin.{StreamManager, ReaderGroupManager}
+import io.pravega.client.stream.{Stream, StreamCut, ReaderGroupConfig, ReaderConfig, ReaderGroup, EventStreamReader, EventRead}
+import io.pravega.client.stream.impl.{ByteBufferSerializer, PositionImpl, StreamCutImpl}
 import io.pravega.client.{BatchClientFactory, ClientConfig}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
-import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, Offset}
+import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, Offset, SupportsAdmissionControl, ReadLimit, ReadAllAvailable, ReadMaxRows}
 import org.apache.spark.sql.connector.read.{InputPartition, PartitionReaderFactory}
 import resource.managed
-
 import scala.collection.JavaConverters.asScalaIteratorConverter
 
 /**
@@ -43,14 +47,20 @@ class PravegaMicroBatchStream(
                                startStreamCut: PravegaStreamCut,
                                endStreamCut: PravegaStreamCut
                              )
-  extends MicroBatchStream with Logging {
+  extends SupportsAdmissionControl with MicroBatchStream with Logging {
 
   protected var batchStartStreamCut: StreamCut = _
   protected var batchEndStreamCut: StreamCut = _
   log.info(s"Initializing micro-batch stream: ${this}")
 
-
   private val streamManager = StreamManager.create(clientConfig)
+  private val maxEventPerTrigger = options.get(PravegaSourceProvider.MAX_EVENTS_PER_TRIGGER).map(_.toLong)
+  private val readerGroupName = UUID.randomUUID().toString().replace("-", "");
+  private var readerGroupManager: ReaderGroupManager = _
+  private var readerGroup: ReaderGroup = _
+  private var clientFactory: EventStreamClientFactory = _
+  private var eventReader: EventStreamReader[ByteBuffer] = _
+  private val executor = Executors.newSingleThreadScheduledExecutor();
 
   // Resolve start and end stream cuts now.
   // We must ensure that getStartOffset and getEndOffset return specific stream cuts, even
@@ -70,13 +80,47 @@ class PravegaMicroBatchStream(
   }
   log.info(s"resolvedStartStreamCut=${resolvedStartStreamCut}, resolvedEndStreamCut=${resolvedEndStreamCut}")
 
+  if (maxEventPerTrigger.isDefined) {
+      readerGroupManager = ReaderGroupManager.withScope(scopeName, clientConfig.getControllerURI())
+      readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(Stream.of(scopeName, streamName), resolvedStartStreamCut).build())
+      readerGroup = readerGroupManager.getReaderGroup(readerGroupName)
+      clientFactory = EventStreamClientFactory.withScope(scopeName, clientConfig)
+      eventReader = clientFactory.createReader("reader", readerGroupName, new ByteBufferSerializer, ReaderConfig.builder().build())
+  }
+
+  override def getDefaultReadLimit: ReadLimit = {
+    if (maxEventPerTrigger.isDefined) {
+      ReadLimit.maxRows(maxEventPerTrigger.get)
+    } else {
+      super.getDefaultReadLimit
+    }
+  }
 
   override def initialOffset(): Offset = {
     PravegaSourceOffset(resolvedStartStreamCut)
   }
 
   override def latestOffset(): Offset = {
-    PravegaSourceOffset(streamManager.getStreamInfo(scopeName, streamName).getTailStreamCut)
+    throw new UnsupportedOperationException(
+      "latestOffset(Offset, ReadLimit) should be called instead of this method")
+  }
+
+  override def latestOffset(start: Offset, readLimit: ReadLimit): Offset = {
+    if(readLimit.isInstanceOf[ReadAllAvailable]) {
+      PravegaSourceOffset(initialStreamInfo.getTailStreamCut)
+    } else {
+      val maxRows = readLimit.asInstanceOf[ReadMaxRows].maxRows()
+      var event: EventRead[ByteBuffer] = null
+      var count: Long = 0
+      do {
+        event = eventReader.readNextEvent(100)
+        count += 1
+      } while (event.getEvent() != null && count < maxRows)
+      log.info(s"check streamcut")
+      val position = event.getPosition().asInstanceOf[PositionImpl].getOwnedSegmentsWithOffsets()
+      val streamcut = new StreamCutImpl(Stream.of(scopeName, streamName), position)
+      PravegaSourceOffset(streamcut)
+    }
   }
 
   /**
@@ -123,6 +167,18 @@ class PravegaMicroBatchStream(
 
   override def stop(): Unit = {
     streamManager.close()
+    if (readerGroup != null) {
+      readerGroup.close()
+    }
+    if (readerGroupManager != null) {
+      readerGroupManager.close()
+    }
+    if (eventReader != null) {
+      eventReader.close()
+    }
+    if (clientFactory != null) {
+      clientFactory.close()
+    }
   }
 
   override def toString(): String = {
