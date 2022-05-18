@@ -39,13 +39,12 @@ The [master](https://github.com/pravega/spark-connectors) branch will always hav
 
 | Spark Version | Pravega Version | Java Version To Build Connector | Java Version To Run Connector | Git Branch                                                                        |
 |---------------|-----------------|---------------------------------|-------------------------------|-----------------------------------------------------------------------------------|
-| 3.1           | 0.10            | Java 11                         | Java 8 or 11                  | [master](https://github.com/pravega/spark-connectors)
-| 3.0           | 0.10            | Java 11                         | Java 8 or 11                  | [r0.10-spark3.0](https://github.com/pravega/spark-connectors/tree/r0.10-spark3.0)                             |
+| 3.1           | 0.12            | Java 11                         | Java 8 or 11                  | [master](https://github.com/pravega/spark-connectors)                             |
+| 3.1           | 0.11            | Java 11                         | Java 8 or 11                  | [r0.11](https://github.com/pravega/spark-connectors/tree/r0.11)                   |
+| 2.4           | 0.11            | Java 8                          | Java 8                        | [r0.11-spark2.4](https://github.com/pravega/spark-connectors/tree/r0.11-spark2.4) |
+| 3.1           | 0.10            | Java 11                         | Java 8 or 11                  | [r0.10](https://github.com/pravega/spark-connectors/tree/r0.10)                   |
+| 3.0           | 0.10            | Java 11                         | Java 8 or 11                  | [r0.10-spark3.0](https://github.com/pravega/spark-connectors/tree/r0.10-spark3.0) |
 | 2.4           | 0.10            | Java 8                          | Java 8                        | [r0.10-spark2.4](https://github.com/pravega/spark-connectors/tree/r0.10-spark2.4) |
-| 3.0           | 0.9             | Java 11                         | Java 8 or 11                  | [r0.9](https://github.com/pravega/spark-connectors/tree/r0.9)                     |
-| 2.4           | 0.9             | Java 8                          | Java 8                        | [r0.9-spark2.4](https://github.com/pravega/spark-connectors/tree/r0.9-spark2.4)   |
-| 3.0           | 0.8             | Java 8                          | Java 8                        | [r0.8-spark3.0](https://github.com/pravega/spark-connectors/tree/r0.8-spark3.0)   |
-| 2.4           | 0.8             | Java 8                          | Java 8                        | [r0.8-spark2.4](https://github.com/pravega/spark-connectors/tree/r0.8-spark2.4)   |
 
 ## Support
 
