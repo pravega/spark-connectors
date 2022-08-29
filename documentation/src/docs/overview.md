@@ -52,10 +52,10 @@ Releases are published to Maven Central. Spark and Gradle will automatically dow
 The pre-built artifacts are available in the following locations:
 
 -  Maven Central (releases)
-   -  [pravega-connectors-spark-3.0](https://mvnrepository.com/artifact/io.pravega/pravega-connectors-spark-3.0)
+   -  [pravega-connectors-spark-3.1](https://mvnrepository.com/artifact/io.pravega/pravega-connectors-spark-3.1)
    -  [pravega-connectors-spark-2.4](https://mvnrepository.com/artifact/io.pravega/pravega-connectors-spark-2.4)
--  JFrog (snapshots)
-   -  [JFrog](http://oss.jfrog.org/jfrog-dependencies/io/pravega/)
+-  GitHub Packages (snapshots)
+   -  [GitHub Packages](https://github.com/orgs/pravega/packages?repo_name=spark-connectors)
 
 ## Support
 
