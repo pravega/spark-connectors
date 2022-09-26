@@ -29,7 +29,7 @@ def getMajorMinorVersion(inputVersion) {
     return ver.substring(0, ver.lastIndexOf('.'))
 }
 
-archivesBaseName = "pravega-connectors-spark-" + getMajorMinorVersion(sparkVersion) + '_' + getMajorMinorVersion(scalaVersion)
+archivesBaseName = "pravega-connectors-spark-" + sparkVersion[0] + '_' + getMajorMinorVersion(scalaVersion)
 
 assemble.dependsOn(shadowJar)
 
