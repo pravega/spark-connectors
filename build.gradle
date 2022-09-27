@@ -68,6 +68,13 @@ repositories {
 configurations {
     shadowOnly {
     }
+    all {
+        testImplementation.extendsFrom(compileOnly)
+        testImplementation.exclude group: 'io.netty', module: 'netty-all'
+        resolutionStrategy {
+            force "com.google.guava:guava:" + guavaVersion
+        }
+    }
 }
 
 dependencies {
