@@ -38,7 +38,7 @@ class PravegaMicroBatchReader(scopeName: String,
   // Resolve start and end stream cuts now.
   // We must ensure that getStartOffset and getEndOffset return specific stream cuts, even
   // if the caller passes "earliest" or "latest".
-  private lazy val initialStreamInfo = streamManager.getStreamInfo(scopeName, streamName)
+  private lazy val initialStreamInfo = PravegaUtils.getStreamInfo(streamManager, scopeName, streamName)
   private val resolvedStartStreamCut = startStreamCut match {
     case EarliestStreamCut | UnboundedStreamCut => initialStreamInfo.getHeadStreamCut
     case LatestStreamCut => initialStreamInfo.getTailStreamCut
@@ -66,7 +66,7 @@ class PravegaMicroBatchReader(scopeName: String,
   override def setOffsetRange(start: ju.Optional[Offset], end: ju.Optional[Offset]): Unit = {
     log.info(s"setOffsetRange(${start},${end})")
 
-    lazy val streamInfo = streamManager.getStreamInfo(scopeName, streamName)
+    lazy val streamInfo = PravegaUtils.getStreamInfo(streamManager, scopeName, streamName)
 
     // The batch will start at the first available stream cut: start, resolvedStartStreamCut
     batchStartStreamCut = Option(start.orElse(null))

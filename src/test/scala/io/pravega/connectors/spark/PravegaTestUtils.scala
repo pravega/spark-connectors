@@ -96,7 +96,7 @@ class PravegaTestUtils extends Logging {
   def getStreamInfo(streamName: String): StreamInfo = {
     val streamManager = StreamManager.create(SETUP_UTILS.getControllerUri)
     try {
-      streamManager.getStreamInfo(scope, streamName)
+      PravegaUtils.getStreamInfo(streamManager, scope, streamName)
     } finally {
       streamManager.close()
     }
