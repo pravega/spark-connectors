@@ -55,7 +55,7 @@ class PravegaMicroBatchStream(
   // Resolve start and end stream cuts now.
   // We must ensure that getStartOffset and getEndOffset return specific stream cuts, even
   // if the caller passes "earliest" or "latest".
-  private lazy val initialStreamInfo = streamManager.getStreamInfo(scopeName, streamName)
+  private lazy val initialStreamInfo = PravegaUtils.getStreamInfo(streamManager, scopeName, streamName)
 
   private val resolvedStartStreamCut = startStreamCut match {
     case EarliestStreamCut | UnboundedStreamCut => initialStreamInfo.getHeadStreamCut
@@ -76,7 +76,7 @@ class PravegaMicroBatchStream(
   }
 
   override def latestOffset(): Offset = {
-    PravegaSourceOffset(streamManager.getStreamInfo(scopeName, streamName).getTailStreamCut)
+    PravegaSourceOffset(PravegaUtils.getStreamInfo(streamManager, scopeName, streamName).getTailStreamCut)
   }
 
   /**
@@ -93,7 +93,7 @@ class PravegaMicroBatchStream(
    */
   override def planInputPartitions(start: Offset, end: Offset): Array[InputPartition] = {
     log.info(s"planInputPartitions(${start},${end})")
-    lazy val streamInfo = streamManager.getStreamInfo(scopeName, streamName)
+    lazy val streamInfo = PravegaUtils.getStreamInfo(streamManager, scopeName, streamName)
     batchStartStreamCut = Option(start)
       .map(_.asInstanceOf[PravegaSourceOffset].streamCut)
       .getOrElse(resolvedStartStreamCut)

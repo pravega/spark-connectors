@@ -25,7 +25,7 @@ class PravegaMetaScan(options: CaseInsensitiveStringMap, metadataTableName: Meta
     (for (streamManager <- managed(StreamManager.create(clientConfig))) yield {
       metadataTableName match {
         case MetadataTableName.StreamInfo => {
-          val streamInfo = streamManager.getStreamInfo(scopeName, streamName)
+          val streamInfo = PravegaUtils.getStreamInfo(streamManager, scopeName, streamName)
           val schema = StructType(Seq(
             StructField("head_stream_cut", StringType),
             StructField("tail_stream_cut", StringType)
