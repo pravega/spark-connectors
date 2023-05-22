@@ -84,7 +84,7 @@ abstract class PravegaSourceTest extends StreamTest with SharedSparkSession with
 
       val sources = {
         query.get.logicalPlan.collect {
-          case StreamingExecutionRelation(source: PravegaMicroBatchStream, _) => source
+          case StreamingExecutionRelation(source: PravegaMicroBatchStream, _, _) => source
           case r: StreamingDataSourceV2Relation if r.stream.isInstanceOf[PravegaMicroBatchStream] =>
             r.stream
         }
