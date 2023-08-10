@@ -96,6 +96,7 @@ object PravegaSourceProvider extends Logging {
   private[spark] val DEFAULT_BATCH_TRANSACTION_TIMEOUT_MS: Long = 2 * 60 * 1000 // 2 minutes (maximum allowed by default server)
   private[spark] val DEFAULT_TRANSACTION_STATUS_POLL_INTERVAL_MS: Long = 50
 
+  private[spark] val MAX_OFFSET_PER_TRIGGER = "maxoffsetspertrigger"
 
   def buildStreamConfig(caseInsensitiveParams: Map[String, String]): StreamConfiguration = {
     var streamConfig = StreamConfiguration.builder
@@ -200,6 +201,12 @@ object PravegaSourceProvider extends Logging {
     val retentionMilliseconds = caseInsensitiveParams.get(PravegaSourceProvider.DEFAULT_RETENTION_DURATION_MILLISECONDS_OPTION_KEY)
     if (retentionMilliseconds.isDefined && (Try(retentionMilliseconds.get.toInt).isFailure || retentionMilliseconds.get.toInt < 0)) {
       throw new IllegalArgumentException(s"Retention time should be an integer morethan or equal to zero milliseconds")
+    }
+
+    val maxOffsetPerTrigger = caseInsensitiveParams.get(PravegaSourceProvider.MAX_OFFSET_PER_TRIGGER)
+    if (maxOffsetPerTrigger.isDefined && (Try(maxOffsetPerTrigger.get.toInt).isFailure || maxOffsetPerTrigger.get.toInt < 1))
+    {
+      throw new IllegalArgumentException(s"Max events per trigger should be an integer more than or equal to one")
     }
   }
 

@@ -149,6 +149,33 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       addSegments = false)
   }
 
+  test(s"read from latest stream cut with maxoffset 1")
+  {
+    val streamName = newStreamName()
+    testFromLatestStreamCut(
+      streamName,
+      addSegments = false,
+      (MAX_OFFSET_PER_TRIGGER, "1"))
+  }
+
+  test(s"read from latest stream cut with maxoffset 1000")
+  {
+    val streamName = newStreamName()
+    testFromLatestStreamCut(
+      streamName,
+      addSegments = false,
+      (MAX_OFFSET_PER_TRIGGER, "1000"))
+  }
+
+  test(s"read from latest stream cut with maxoffset 10")
+  {
+    val streamName = newStreamName()
+    testFromLatestStreamCut(
+      streamName,
+      addSegments = false,
+      (MAX_OFFSET_PER_TRIGGER, "10"))
+  }
+
   test(s"read from earliest stream cut") {
     val streamName = newStreamName()
     testFromEarliestStreamCut(
@@ -161,6 +188,15 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
     testFromSpecificStreamCut(
       streamName,
       addSegments = false)
+  }
+
+  test(s"read from specific stream cut with maxoffset 10")
+  {
+    val streamName = newStreamName()
+    testFromSpecificStreamCut(
+      streamName,
+      addSegments = false,
+      (MAX_OFFSET_PER_TRIGGER, "10"))
   }
 
   test(s"read from earliest stream cut, add new segments") {
@@ -250,6 +286,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
       .option(START_STREAM_CUT_OPTION_KEY, STREAM_CUT_EARLIEST)
+      .option(MAX_OFFSET_PER_TRIGGER, "1")
     options.foreach { case (k, v) => reader.option(k, v) }
     val dataset = reader.load()
       .selectExpr("CAST(event AS STRING)")
@@ -307,6 +344,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
       .option(START_STREAM_CUT_OPTION_KEY, tail1)
+      .option(MAX_OFFSET_PER_TRIGGER, "1")
     options.foreach { case (k, v) => reader.option(k, v) }
     val dataset = reader.load()
       .selectExpr("CAST(event AS STRING)")
@@ -338,6 +376,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
       .option(START_STREAM_CUT_OPTION_KEY, STREAM_CUT_EARLIEST)
+      .option(MAX_OFFSET_PER_TRIGGER, "1")
       .load()
 
     val query = df
@@ -374,6 +413,7 @@ abstract class PravegaMicroBatchSourceSuiteBase extends PravegaSourceSuiteBase {
       .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
+      .option(MAX_OFFSET_PER_TRIGGER, "1")
 
     testStream(reader.load)(
       makeSureGetOffsetCalled,
@@ -393,6 +433,7 @@ abstract class PravegaMicroBatchSourceSuiteBase extends PravegaSourceSuiteBase {
       .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
+      .option(MAX_OFFSET_PER_TRIGGER, "1")
       .load()
       .selectExpr("CAST(event AS STRING)")
       .as[String]
@@ -420,6 +461,7 @@ abstract class PravegaMicroBatchSourceSuiteBase extends PravegaSourceSuiteBase {
       .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
       .option(SCOPE_OPTION_KEY, testUtils.scope)
       .option(STREAM_OPTION_KEY, streamName)
+      .option(MAX_OFFSET_PER_TRIGGER, "1")
       .load()
 
     val values = df
