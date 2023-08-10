@@ -159,8 +159,7 @@ class PravegaMicroBatchStream(
     if ( maxOffsetsPerTrigger.isDefined) {
         ReadLimit.maxRows(maxOffsetsPerTrigger.get)
     } else {
-      // TODO (SPARK-37973) Directly call super.getDefaultReadLimit when scala issue 12523 is fixed
-      maxOffsetsPerTrigger.map(ReadLimit.maxRows).getOrElse(ReadLimit.allAvailable())
+      super.getDefaultReadLimit
     }
   }
 }
