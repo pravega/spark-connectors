@@ -204,9 +204,9 @@ object PravegaSourceProvider extends Logging {
     }
 
     val maxOffsetPerTrigger = caseInsensitiveParams.get(PravegaSourceProvider.MAX_OFFSET_PER_TRIGGER)
-    if (maxOffsetPerTrigger.isDefined && (Try(maxOffsetPerTrigger.get.toInt).isFailure || maxOffsetPerTrigger.get.toInt < 1))
+    if (maxOffsetPerTrigger.isDefined && (Try(maxOffsetPerTrigger.get.toLong).isFailure || maxOffsetPerTrigger.get.toLong < 1))
     {
-      throw new IllegalArgumentException(s"Max events per trigger should be an integer more than or equal to one")
+      throw new IllegalArgumentException(s"Max offset should be of type long more than or equal to one")
     }
   }
 
