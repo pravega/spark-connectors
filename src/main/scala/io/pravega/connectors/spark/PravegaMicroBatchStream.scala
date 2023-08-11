@@ -77,10 +77,7 @@ class PravegaMicroBatchStream(
   }
 
   override def latestOffset(): Offset = {
-    //TODO Confirm if we can throw exception like below how it is implemented in kafka connector or we can keep existing implementation
     PravegaSourceOffset(PravegaUtils.getStreamInfo(streamManager, scopeName, streamName).getTailStreamCut)
-    /*throw new UnsupportedOperationException(
-      "latestOffset(Offset, ReadLimit) should be called instead of this method")*/
   }
 
   /**
@@ -134,18 +131,15 @@ class PravegaMicroBatchStream(
       s" startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}}"
   }
 
-  override def latestOffset(start: Offset, readLimit: ReadLimit): Offset =
-  {
+  override def latestOffset(start: Offset, readLimit: ReadLimit): Offset = {
     val startOffset = Option(start)
       .map(_.asInstanceOf[PravegaSourceOffset].streamCut).get
-    val limits: Seq[ReadLimit] = readLimit match
-    {
+    val limits: Seq[ReadLimit] = readLimit match {
       case rows => Seq(rows)
     }
     val nextStreamCut = if (limits.exists(_.isInstanceOf[ReadAllAvailable])) {
       PravegaSourceOffset(PravegaUtils.getStreamInfo(streamManager, scopeName, streamName).getTailStreamCut)
-    } else
-    {
+    } else {
       val upperLimit = limits.find(_.isInstanceOf[ReadMaxRows]).map(_.asInstanceOf[ReadMaxRows])
       PravegaSourceOffset(batchClientFactory.getNextStreamCut(startOffset, upperLimit.get.maxRows()))
     }
