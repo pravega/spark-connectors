@@ -262,7 +262,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       streamName,
       addSegments = false,
       numSegments = 3,
-      (MAX_OFFSET_PER_TRIGGER, "10")))
+      (MAX_OFFSET_PER_TRIGGER, 10)))
   }
 
   // ApproxDistance per segemnt(1/3=0.3) next StreamCut is fetched i.e 1 which is less then each event length i.e 10 . batch 1 will yield one event each
@@ -273,7 +273,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       streamName,
       addSegments = false,
       numSegments = 3,
-      (MAX_OFFSET_PER_TRIGGER, "1")))
+      (MAX_OFFSET_PER_TRIGGER, 1)))
   }
 
   // ApproxDistance per segemnt(30/3=10) equal to each event length i.e 10 . batch 1 will yield one event each
@@ -283,7 +283,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       streamName,
       addSegments = false,
       numSegments = 3,
-      (MAX_OFFSET_PER_TRIGGER, "30")))
+      (MAX_OFFSET_PER_TRIGGER, 30)))
   }
 
   // ApproxDistance per segemnt(33/3=11) greater then each event length i.e 10 . batch 1 will yield two events each
@@ -294,7 +294,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       streamName,
       addSegments = false,
       numSegments = 3,
-      (MAX_OFFSET_PER_TRIGGER, "33")))
+      (MAX_OFFSET_PER_TRIGGER, 33)))
   }
   // ApproxDistance per segemnt(100/3=33) greater then each event length of all 3 events i.e 30 . batch 1 will yield all events till tail.
   //nextStreamCut = scope/stream0:0=30, 1=30, 2=30 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
@@ -304,14 +304,24 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       streamName,
       addSegments = false,
       numSegments = 3,
-      (MAX_OFFSET_PER_TRIGGER, "100")))
+      (MAX_OFFSET_PER_TRIGGER, 100)))
+  }
+
+  test(s"read in batches of maxoffset Long max")
+  {
+    val streamName = newStreamName()
+    testForBatchSizeTooLarge(getDataSet(
+      streamName,
+      addSegments = false,
+      numSegments = 3,
+      (MAX_OFFSET_PER_TRIGGER, Long.MaxValue)))
   }
 
   private def getDataSet(
                    streamName: String,
                    addSegments: Boolean,
                    numSegments: Int,
-                   options: (String, String)*): Dataset[Int] = {
+                   options: (String, Long)*): Dataset[Int] = {
     testUtils.createTestStream(streamName, numSegments = numSegments)
     testUtils.sendMessages(streamName, Array(10, 40, 70).map(_.toString), Some(0)) // appends 10,40,70 to segment 0 each length is 10
     testUtils.sendMessages(streamName, Array(20, 50, 80).map(_.toString), Some(1)) // appends 20,50,80 to segment 1 each length is 10

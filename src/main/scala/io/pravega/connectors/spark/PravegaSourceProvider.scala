@@ -96,7 +96,7 @@ object PravegaSourceProvider extends Logging {
   private[spark] val DEFAULT_BATCH_TRANSACTION_TIMEOUT_MS: Long = 2 * 60 * 1000 // 2 minutes (maximum allowed by default server)
   private[spark] val DEFAULT_TRANSACTION_STATUS_POLL_INTERVAL_MS: Long = 50
 
-  private[spark] val MAX_OFFSET_PER_TRIGGER = "maxoffsetspertrigger"
+  private[spark] val MAX_OFFSET_PER_TRIGGER = "max_offsets_per_trigger"
 
   def buildStreamConfig(caseInsensitiveParams: Map[String, String]): StreamConfiguration = {
     var streamConfig = StreamConfiguration.builder
