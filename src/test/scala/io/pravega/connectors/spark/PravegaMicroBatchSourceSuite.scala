@@ -314,8 +314,8 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
                    options: (String, String)*): Dataset[Int] = {
     testUtils.createTestStream(streamName, numSegments = numSegments)
     testUtils.sendMessages(streamName, Array(10, 40, 70).map(_.toString), Some(0)) // appends 10,40,70 to segment 0 each length is 10
-    testUtils.sendMessages(streamName, Array(20, 50, 80).map(_.toString), Some(1)) // appends 20,50,80 to segment 0 each length is 10
-    testUtils.sendMessages(streamName, Array(30, 60, 90).map(_.toString), Some(2)) // appends 30,60,90 to segment 0 each length is 10
+    testUtils.sendMessages(streamName, Array(20, 50, 80).map(_.toString), Some(1)) // appends 20,50,80 to segment 1 each length is 10
+    testUtils.sendMessages(streamName, Array(30, 60, 90).map(_.toString), Some(2)) // appends 30,60,90 to segment 2 each length is 10
     require(testUtils.getLatestStreamCut(Set(streamName)).asImpl().getPositions.size === numSegments)
 
     val reader = spark.readStream
