@@ -164,28 +164,28 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       addSegments = false)
   }
 
-  test(s"read from latest stream cut with maxoffset 1") {
+  test(s"read from latest stream cut with approxBytes 1") {
     val streamName = newStreamName()
     testFromLatestStreamCut(
       streamName,
       addSegments = false,
-      (MAX_OFFSET_PER_TRIGGER, "1"))
+      (APPROX_BYTES_PER_TRIGGER, "1"))
   }
 
-  test(s"read from latest stream cut with maxoffset 1000") {
+  test(s"read from latest stream cut with approxBytes 1000") {
     val streamName = newStreamName()
     testFromLatestStreamCut(
       streamName,
       addSegments = false,
-      (MAX_OFFSET_PER_TRIGGER, "1000"))
+      (APPROX_BYTES_PER_TRIGGER, "1000"))
   }
 
-  test(s"read from latest stream cut with maxoffset 10") {
+  test(s"read from latest stream cut with approxBytes 10") {
     val streamName = newStreamName()
     testFromLatestStreamCut(
       streamName,
       addSegments = false,
-      (MAX_OFFSET_PER_TRIGGER, "10"))
+      (APPROX_BYTES_PER_TRIGGER, "10"))
   }
 
   test(s"read from earliest stream cut") {
@@ -195,7 +195,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       addSegments = false)
   }
 
-  test(s"read from earliest stream cut with maxoffset 10") {
+  test(s"read from earliest stream cut with approxBytes 10") {
     val streamName = newStreamName()
     testFromEarliestStreamCut(
       streamName,
@@ -205,7 +205,7 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
     )
   }
 
-  test(s"read from earliest stream cut with maxoffset 1000") {
+  test(s"read from earliest stream cut with approxBytes 1000") {
     val streamName = newStreamName()
     testFromEarliestStreamCut(
       streamName,
@@ -222,12 +222,12 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       addSegments = false)
   }
 
-  test(s"read from specific stream cut with maxoffset 10") {
+  test(s"read from specific stream cut with approxBytes 10") {
     val streamName = newStreamName()
     testFromSpecificStreamCut(
       streamName,
       addSegments = false,
-      (MAX_OFFSET_PER_TRIGGER, "10"))
+      (APPROX_BYTES_PER_TRIGGER, "10"))
   }
 
   test(s"read from earliest stream cut, add new segments") {
@@ -256,65 +256,65 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
     }
   }
 
-  test(s"read in batches of maxoffset 10") {
+  test(s"read in batches of approxBytes 10") {
     val streamName = newStreamName()
     testForBatchSizeMinimum(getDataSet(
       streamName,
       addSegments = false,
       numSegments = 3,
-      (MAX_OFFSET_PER_TRIGGER, 10)))
+      (APPROX_BYTES_PER_TRIGGER, 10)))
   }
 
   // ApproxDistance per segemnt(1/3=0.3) next StreamCut is fetched i.e 1 which is less then each event length i.e 10 . batch 1 will yield one event each
-  test(s"read in batches of maxoffset 1")
+  test(s"read in batches of approxBytes 1")
   {
     val streamName = newStreamName()
     testForBatchSizeMinimum(getDataSet(
       streamName,
       addSegments = false,
       numSegments = 3,
-      (MAX_OFFSET_PER_TRIGGER, 1)))
+      (APPROX_BYTES_PER_TRIGGER, 1)))
   }
 
   // ApproxDistance per segemnt(30/3=10) equal to each event length i.e 10 . batch 1 will yield one event each
-  test(s"read in batches of maxoffset 30") {
+  test(s"read in batches of approxBytes 30") {
     val streamName = newStreamName()
     testForBatchSizeMinimum(getDataSet(
       streamName,
       addSegments = false,
       numSegments = 3,
-      (MAX_OFFSET_PER_TRIGGER, 30)))
+      (APPROX_BYTES_PER_TRIGGER, 30)))
   }
 
   // ApproxDistance per segemnt(33/3=11) greater then each event length i.e 10 . batch 1 will yield two events each
   // nextStreamCut = scope/stream0:0=20, 1=20, 2=20 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
-  test(s"read in batches of maxoffset 33") {
+  test(s"read in batches of approxBytes 33") {
     val streamName = newStreamName()
     testForBatchSizeCustom(getDataSet(
       streamName,
       addSegments = false,
       numSegments = 3,
-      (MAX_OFFSET_PER_TRIGGER, 33)))
+      (APPROX_BYTES_PER_TRIGGER, 33)))
   }
   // ApproxDistance per segemnt(100/3=33) greater then each event length of all 3 events i.e 30 . batch 1 will yield all events till tail.
   //nextStreamCut = scope/stream0:0=30, 1=30, 2=30 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
-  test(s"read in batches of maxoffset 100") {
+  test(s"read in batches of approxBytes 100") {
     val streamName = newStreamName()
     testForBatchSizeTooLarge(getDataSet(
       streamName,
       addSegments = false,
       numSegments = 3,
-      (MAX_OFFSET_PER_TRIGGER, 100)))
+      (APPROX_BYTES_PER_TRIGGER, 100)))
   }
 
-  test(s"read in batches of maxoffset Long max")
+  test(s"read in batches of approxBytes Long max")
   {
     val streamName = newStreamName()
     testForBatchSizeTooLarge(getDataSet(
       streamName,
       addSegments = false,
       numSegments = 3,
-      (MAX_OFFSET_PER_TRIGGER, Long.MaxValue)))
+      (APPROX_BYTES_PER_TRIGGER, Long.MaxValue)))
   }
 
   private def getDataSet(

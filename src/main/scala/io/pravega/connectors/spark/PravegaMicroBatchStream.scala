@@ -148,10 +148,10 @@ class PravegaMicroBatchStream(
   }
 
   override def getDefaultReadLimit: ReadLimit = {
-    val maxOffsetsPerTrigger = Option(options.get(
-          PravegaSourceProvider.MAX_OFFSET_PER_TRIGGER)).get.map(_.toLong)
-    if ( maxOffsetsPerTrigger.isDefined) {
-        ReadLimit.maxRows(maxOffsetsPerTrigger.get)
+    val approxBytesPerTrigger = Option(options.get(
+          PravegaSourceProvider.APPROX_BYTES_PER_TRIGGER)).get.map(_.toLong)
+    if ( approxBytesPerTrigger.isDefined) {
+        ReadLimit.maxRows(approxBytesPerTrigger.get)
     } else {
       super.getDefaultReadLimit
     }
