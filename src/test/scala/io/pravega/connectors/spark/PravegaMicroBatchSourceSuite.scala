@@ -11,14 +11,16 @@ package io.pravega.connectors.spark
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.concurrent.atomic.AtomicInteger
-
 import io.pravega.client.stream.StreamCut
 import io.pravega.connectors.spark.PravegaSourceProvider._
+import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, SparkDataStream}
 import org.apache.spark.sql.execution.datasources.v2.StreamingDataSourceV2Relation
 import org.apache.spark.sql.execution.streaming._
+import org.apache.spark.sql.streaming.util.StreamManualClock
 import org.apache.spark.sql.streaming.{StreamTest, Trigger}
 import org.apache.spark.sql.test.SharedSparkSession
+import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.time.Span
 import org.scalatest.time.SpanSugar._
 
@@ -119,6 +121,19 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
 
   import testImplicits._
 
+  private def waitUntilBatchProcessed(clock: StreamManualClock) = AssertOnQuery {
+    q =>
+    eventually(Timeout(streamingTimeout)) {
+      if (!q.exception.isDefined) {
+        assert(clock.isStreamWaitingAt(clock.getTimeMillis()))
+      }
+    }
+    if (q.exception.isDefined) {
+      throw q.exception.get
+    }
+    true
+  }
+
   test("stop stream before reading anything") {
     val streamName = newStreamName()
     testUtils.createTestStream(streamName, numSegments = 5)
@@ -149,6 +164,30 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       addSegments = false)
   }
 
+  test(s"read from latest stream cut with approxBytes 1") {
+    val streamName = newStreamName()
+    testFromLatestStreamCut(
+      streamName,
+      addSegments = false,
+      (APPROX_BYTES_PER_TRIGGER, "1"))
+  }
+
+  test(s"read from latest stream cut with approxBytes 1000") {
+    val streamName = newStreamName()
+    testFromLatestStreamCut(
+      streamName,
+      addSegments = false,
+      (APPROX_BYTES_PER_TRIGGER, "1000"))
+  }
+
+  test(s"read from latest stream cut with approxBytes 10") {
+    val streamName = newStreamName()
+    testFromLatestStreamCut(
+      streamName,
+      addSegments = false,
+      (APPROX_BYTES_PER_TRIGGER, "10"))
+  }
+
   test(s"read from earliest stream cut") {
     val streamName = newStreamName()
     testFromEarliestStreamCut(
@@ -156,11 +195,39 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       addSegments = false)
   }
 
+  test(s"read from earliest stream cut with approxBytes 10") {
+    val streamName = newStreamName()
+    testFromEarliestStreamCut(
+      streamName,
+      addSegments = false,
+      5,
+      Map("MAX_OFFSET_PER_TRIGGE" -> "10")
+    )
+  }
+
+  test(s"read from earliest stream cut with approxBytes 1000") {
+    val streamName = newStreamName()
+    testFromEarliestStreamCut(
+      streamName,
+      addSegments = false,
+      5,
+      Map("MAX_OFFSET_PER_TRIGGE" -> "1000")
+    )
+  }
+
   test(s"read from specific stream cut") {
     val streamName = newStreamName()
     testFromSpecificStreamCut(
       streamName,
       addSegments = false)
+  }
+
+  test(s"read from specific stream cut with approxBytes 10") {
+    val streamName = newStreamName()
+    testFromSpecificStreamCut(
+      streamName,
+      addSegments = false,
+      (APPROX_BYTES_PER_TRIGGER, "10"))
   }
 
   test(s"read from earliest stream cut, add new segments") {
@@ -187,6 +254,144 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       val offset = getPravegaStreamCut(Map.empty, optionKey, answer)
       assert(offset === answer)
     }
+  }
+
+  test(s"read in batches of approxBytes 10") {
+    val streamName = newStreamName()
+    testForBatchSizeMinimum(getDataSet(
+      streamName,
+      addSegments = false,
+      numSegments = 3,
+      (APPROX_BYTES_PER_TRIGGER, 10)))
+  }
+
+  // ApproxDistance per segemnt(1/3=0.3) next StreamCut is fetched i.e 1 which is less then each event length i.e 10 . batch 1 will yield one event each
+  test(s"read in batches of approxBytes 1")
+  {
+    val streamName = newStreamName()
+    testForBatchSizeMinimum(getDataSet(
+      streamName,
+      addSegments = false,
+      numSegments = 3,
+      (APPROX_BYTES_PER_TRIGGER, 1)))
+  }
+
+  // ApproxDistance per segemnt(30/3=10) equal to each event length i.e 10 . batch 1 will yield one event each
+  test(s"read in batches of approxBytes 30") {
+    val streamName = newStreamName()
+    testForBatchSizeMinimum(getDataSet(
+      streamName,
+      addSegments = false,
+      numSegments = 3,
+      (APPROX_BYTES_PER_TRIGGER, 30)))
+  }
+
+  // ApproxDistance per segemnt(33/3=11) greater then each event length i.e 10 . batch 1 will yield two events each
+  // nextStreamCut = scope/stream0:0=20, 1=20, 2=20 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
+  test(s"read in batches of approxBytes 33") {
+    val streamName = newStreamName()
+    testForBatchSizeCustom(getDataSet(
+      streamName,
+      addSegments = false,
+      numSegments = 3,
+      (APPROX_BYTES_PER_TRIGGER, 33)))
+  }
+  // ApproxDistance per segemnt(100/3=33) greater then each event length of all 3 events i.e 30 . batch 1 will yield all events till tail.
+  //nextStreamCut = scope/stream0:0=30, 1=30, 2=30 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
+  test(s"read in batches of approxBytes 100") {
+    val streamName = newStreamName()
+    testForBatchSizeTooLarge(getDataSet(
+      streamName,
+      addSegments = false,
+      numSegments = 3,
+      (APPROX_BYTES_PER_TRIGGER, 100)))
+  }
+
+  test(s"read in batches of approxBytes Long max")
+  {
+    val streamName = newStreamName()
+    testForBatchSizeTooLarge(getDataSet(
+      streamName,
+      addSegments = false,
+      numSegments = 3,
+      (APPROX_BYTES_PER_TRIGGER, Long.MaxValue)))
+  }
+
+  private def getDataSet(
+                   streamName: String,
+                   addSegments: Boolean,
+                   numSegments: Int,
+                   options: (String, Long)*): Dataset[Int] = {
+    testUtils.createTestStream(streamName, numSegments = numSegments)
+    testUtils.sendMessages(streamName, Array(10, 40, 70).map(_.toString), Some(0)) // appends 10,40,70 to segment 0 each length is 10
+    testUtils.sendMessages(streamName, Array(20, 50, 80).map(_.toString), Some(1)) // appends 20,50,80 to segment 1 each length is 10
+    testUtils.sendMessages(streamName, Array(30, 60, 90).map(_.toString), Some(2)) // appends 30,60,90 to segment 2 each length is 10
+    require(testUtils.getLatestStreamCut(Set(streamName)).asImpl().getPositions.size === numSegments)
+
+    val reader = spark.readStream
+    reader
+      .format(SOURCE_PROVIDER_NAME)
+      .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+      .option(SCOPE_OPTION_KEY, testUtils.scope)
+      .option(STREAM_OPTION_KEY, streamName)
+      .option(START_STREAM_CUT_OPTION_KEY, STREAM_CUT_EARLIEST)
+    options.foreach
+    { case (k, v) => reader.option(k, v) }
+    val dataset = reader.load()
+      .selectExpr("CAST(event AS STRING)")
+      .as[String]
+    dataset.map(e => e.toInt + 1)
+  }
+
+  /*
+    *  Batch 1: nextStreamCut = scope/stream0:0=10, 1=10, 2=10 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
+    *  Batch 2: nextStreamCut = scope/stream0:0=20, 1=20, 2=20 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
+    *  Batch 3: nextStreamCut = scope/stream0:0=30, 1=30, 2=30 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
+    */
+  private def testForBatchSizeMinimum( mapped: Dataset[Int]): Unit = {
+    val clock = new StreamManualClock
+    testStream(mapped)(
+      StartStream(Trigger.ProcessingTime(100), clock),
+      waitUntilBatchProcessed(clock),
+      CheckAnswer(11, 21, 31),
+      AdvanceManualClock(100),
+      waitUntilBatchProcessed(clock),
+      CheckAnswer(11, 21, 31, 41, 51, 61),
+      AdvanceManualClock(100),
+      waitUntilBatchProcessed(clock),
+      CheckAnswer(11, 21, 31, 41, 51, 61, 71, 81, 91)
+    )
+  }
+
+  /*
+    *  Batch 1: nextStreamCut = scope/stream0:0=20, 1=20, 2=20 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
+    *  Batch 2: nextStreamCut = scope/stream0:0=30, 1=30, 2=30 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
+    */
+  private def testForBatchSizeCustom(mapped: Dataset[Int]): Unit = {
+    val clock = new StreamManualClock
+    testStream(mapped)(
+      StartStream(Trigger.ProcessingTime(100), clock),
+      waitUntilBatchProcessed(clock),
+      CheckAnswer(11, 21, 31, 41, 51, 61),
+      AdvanceManualClock(100),
+      waitUntilBatchProcessed(clock),
+      CheckAnswer(11, 21, 31, 41, 51, 61, 71, 81, 91)
+    )
+  }
+
+  /*
+   *  Batch 1: nextStreamCut = scope/stream0:0=30, 1=30, 2=30 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
+   */
+  private def testForBatchSizeTooLarge(mapped: Dataset[Int]): Unit = {
+    val clock = new StreamManualClock
+    testStream(mapped)(
+      StartStream(Trigger.ProcessingTime(100), clock),
+      waitUntilBatchProcessed(clock),
+      CheckAnswer(11, 21, 31, 41, 51, 61, 71, 81, 91),
+      AdvanceManualClock(100),
+      waitUntilBatchProcessed(clock),
+      CheckAnswer(11, 21, 31, 41, 51, 61, 71, 81, 91)
+    )
   }
 
   private def testFromLatestStreamCut(
