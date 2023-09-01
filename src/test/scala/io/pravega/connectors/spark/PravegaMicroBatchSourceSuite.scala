@@ -276,14 +276,14 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
       (APPROX_BYTES_PER_TRIGGER, 1)))
   }
 
-  // ApproxDistance per segemnt(30/3=10) equal to each event length i.e 10 . batch 1 will yield one event each
+  // ApproxDistance per segemnt(20/3=6.6) next StreamCut is fetched i.e 1 which is less then each event length i.e 10 . batch 1 will yield one event each
   test(s"read in batches of approxBytes 30") {
     val streamName = newStreamName()
     testForBatchSizeMinimum(getDataSet(
       streamName,
       addSegments = false,
       numSegments = 3,
-      (APPROX_BYTES_PER_TRIGGER, 30)))
+      (APPROX_BYTES_PER_TRIGGER, 20)))
   }
 
   // ApproxDistance per segemnt(33/3=11) greater then each event length i.e 10 . batch 1 will yield two events each
