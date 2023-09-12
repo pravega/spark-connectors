@@ -18,6 +18,7 @@
 package io.pravega.connectors.spark
 
 import io.pravega.client.admin.StreamManager
+import io.pravega.client.segment.impl.SegmentTruncatedException
 import io.pravega.client.stream.{Stream, StreamCut}
 import io.pravega.client.{BatchClientFactory, ClientConfig}
 import org.apache.spark.internal.Logging
@@ -142,6 +143,13 @@ class PravegaMicroBatchStream(
     } else {
       val upperLimit = limits.find(_.isInstanceOf[ReadMaxRows]).map(_.asInstanceOf[ReadMaxRows])
       PravegaSourceOffset(batchClientFactory.getNextStreamCut(startOffset, upperLimit.get.maxRows()))
+      try {
+        PravegaSourceOffset(batchClientFactory.getNextStreamCut(startOffset, upperLimit.get.maxRows()))
+      }
+      catch
+      {
+        case e: SegmentTruncatedException => PravegaSourceOffset(PravegaUtils.getStreamInfo(streamManager, scopeName, streamName).getTailStreamCut)
+      }
     }
     log.info(s"nextStreamCut = ${nextStreamCut.streamCut}")
     nextStreamCut
