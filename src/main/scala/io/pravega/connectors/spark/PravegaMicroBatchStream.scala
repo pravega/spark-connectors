@@ -148,7 +148,7 @@ class PravegaMicroBatchStream(
       }
       catch
       {
-        case e: SegmentTruncatedException => PravegaSourceOffset(PravegaUtils.getStreamInfo(streamManager, scopeName, streamName).getTailStreamCut)
+        case e: SegmentTruncatedException => PravegaSourceOffset(PravegaUtils.getStreamInfo(streamManager, scopeName, streamName).getHeadStreamCut)
       }
     }
     log.info(s"nextStreamCut = ${nextStreamCut.streamCut}")

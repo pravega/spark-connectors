@@ -347,16 +347,16 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
     *  Batch 1: nextStreamCut = scope/stream0:0=10, 1=10, 2=10 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
     *  Batch 2: nextStreamCut = scope/stream0:0=20, 1=20, 2=20 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
     *  Batch 3: nextStreamCut = scope/stream0:0=30, 1=30, 2=30 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
+    *  We have a probabilistic mechanism to get nextOffset so can not guarantee each batch will have consistent data
+    *  but assert that eventually it must fetch all data.
     */
   private def testForBatchSizeMinimum( mapped: Dataset[Int]): Unit = {
     val clock = new StreamManualClock
     testStream(mapped)(
       StartStream(Trigger.ProcessingTime(100), clock),
       waitUntilBatchProcessed(clock),
-      CheckAnswer(11, 21, 31),
       AdvanceManualClock(100),
       waitUntilBatchProcessed(clock),
-      CheckAnswer(11, 21, 31, 41, 51, 61),
       AdvanceManualClock(100),
       waitUntilBatchProcessed(clock),
       CheckAnswer(11, 21, 31, 41, 51, 61, 71, 81, 91)
@@ -366,13 +366,14 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
   /*
     *  Batch 1: nextStreamCut = scope/stream0:0=20, 1=20, 2=20 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
     *  Batch 2: nextStreamCut = scope/stream0:0=30, 1=30, 2=30 Tail stream cut = scope/stream0:0=30, 1=30, 2=30
+    *  We have a probabilistic mechanism to get nextOffset so can not guarantee each batch will have consistent data
+    *  but assert that eventually it must fetch all data.
     */
   private def testForBatchSizeCustom(mapped: Dataset[Int]): Unit = {
     val clock = new StreamManualClock
     testStream(mapped)(
       StartStream(Trigger.ProcessingTime(100), clock),
       waitUntilBatchProcessed(clock),
-      CheckAnswer(11, 21, 31, 41, 51, 61),
       AdvanceManualClock(100),
       waitUntilBatchProcessed(clock),
       CheckAnswer(11, 21, 31, 41, 51, 61, 71, 81, 91)
