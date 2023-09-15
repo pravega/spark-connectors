@@ -134,6 +134,53 @@ abstract class PravegaSourceSuiteBase extends PravegaSourceTest {
     true
   }
 
+  // Test TruncatedDataException scenario.
+  test(s"read from some earlier streamcut in a truncated stream.")
+  {
+    val streamName = newStreamName()
+    testUtils.createTestStream(streamName, numSegments = 5)
+
+    // Following messages will be truncated .
+    testUtils.sendMessages(streamName, Array(-10, -11, -12).map(_.toString), Some(1))
+    testUtils.sendMessages(streamName, Array(10).map(_.toString), Some(3))
+    testUtils.sendMessages(streamName, Array(20, 21).map(_.toString), Some(4))
+
+    val streamInfo1 = testUtils.getStreamInfo(streamName)
+    log.info(s"testFromSpecificStreamCut: streamInfo1=${streamInfo1}")
+    val head1 = streamInfo1.getHeadStreamCut.asText
+    val tail1 = streamInfo1.getTailStreamCut.asText
+    assert(head1 != tail1)
+
+    //Truncating the Stream from tail stream cut to mimic TruncatedDataException scenario while reading from some earlier stream Cut.
+    assert(testUtils.truncateStream(streamName,  streamInfo1.getTailStreamCut))
+
+    // Passing headStreaCut to reader to read from truncated Steam part.
+    val reader = spark.readStream
+    reader
+      .format(SOURCE_PROVIDER_NAME)
+      .option(CONTROLLER_OPTION_KEY, testUtils.controllerUri)
+      .option(SCOPE_OPTION_KEY, testUtils.scope)
+      .option(STREAM_OPTION_KEY, streamName)
+      .option(START_STREAM_CUT_OPTION_KEY, head1)
+      .option(APPROX_BYTES_PER_TRIGGER, 10)
+
+    val dataset = reader.load()
+      .selectExpr("CAST(event AS STRING)")
+      .as[String]
+    val mapped = dataset.map(e => e.toInt)
+    testStream(mapped)(
+      makeSureGetOffsetCalled,
+      CheckAnswer(),
+      AddPravegaData(Set(streamName), 28, 29),
+      CheckAnswer(28, 29),
+      StopStream,
+      StartStream(),
+      AddPravegaData(Set(streamName), 30, 31, 32, 33, 34),
+      CheckAnswer(28, 29, 30, 31, 32, 33, 34),
+      StopStream
+    )
+  }
+
   test("stop stream before reading anything") {
     val streamName = newStreamName()
     testUtils.createTestStream(streamName, numSegments = 5)

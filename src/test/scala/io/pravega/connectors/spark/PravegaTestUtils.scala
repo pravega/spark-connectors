@@ -145,6 +145,10 @@ class PravegaTestUtils extends Logging {
       }
     }
   }
+
+  def truncateStream(streamName: String, streamCut : StreamCut): Boolean = {
+    SETUP_UTILS.getController.truncateStream(scope, streamName, streamCut).get()
+  }
 }
 
 object PravegaTestUtils {
