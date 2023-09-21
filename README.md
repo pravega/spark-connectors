@@ -8,7 +8,7 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-# Pravega Spark Connectors [![Build Status](https://travis-ci.org/pravega/spark-connectors.svg?branch=master)](https://travis-ci.org/pravega/spark-connectors) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+# Pravega Spark Connectors [![Build Status](https://github.com/pravega/spark-connectors/actions/workflows/build.yml/badge.svg)](https://github.com/pravega/spark-connectors/actions/workflows/build.yml?query=branch%3Amaster) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
 This repository implements connectors to read and write [Pravega](http://pravega.io/) Streams with [Apache Spark](http://spark.apache.org/), a high-performance analytics engine for batch and streaming data.
 
@@ -37,14 +37,10 @@ To learn more about Pravega, visit https://pravega.io
 
 The [master](https://github.com/pravega/spark-connectors) branch will always have the most recent supported versions of Spark and Pravega.
 
-| Spark Version | Pravega Version | Java Version To Build Connector | Java Version To Run Connector | Git Branch                                                                        |
-|---------------|-----------------|---------------------------------|-------------------------------|-----------------------------------------------------------------------------------|
-| 3.1+          | 0.13            | Java 11                         | Java 8 or 11                  | [master](https://github.com/pravega/spark-connectors)                             |
-| 2.4           | 0.13            | Java 8                          | Java 8                        | [r0.13-spark2.4](https://github.com/pravega/spark-connectors/tree/r0.13-spark2.4) |
-| 3.1+          | 0.12            | Java 11                         | Java 8 or 11                  | [r0.12](https://github.com/pravega/spark-connectors/tree/r0.12)                   |
-| 2.4           | 0.12            | Java 8                          | Java 8                        | [r0.12-spark2.4](https://github.com/pravega/spark-connectors/tree/r0.12-spark2.4) |
-| 3.1+          | 0.11            | Java 11                         | Java 8 or 11                  | [r0.11](https://github.com/pravega/spark-connectors/tree/r0.11)                   |
-| 2.4           | 0.11            | Java 8                          | Java 8                        | [r0.11-spark2.4](https://github.com/pravega/spark-connectors/tree/r0.11-spark2.4) |
+| Spark Version | Pravega Version | Java Version To Build Connector | Java Version To Run Connector | Git Branch                                                      |
+|---------------|-----------------|---------------------------------|-------------------------------|-----------------------------------------------------------------|
+| 3.4           | 0.14            | Java 11                         | Java 8 or 11                  | [master](https://github.com/pravega/spark-connectors)           |
+| 3.4           | 0.13            | Java 11                         | Java 8 or 11                  | [r0.13](https://github.com/pravega/spark-connectors/tree/r0.13) |
 
 ## Support
 
