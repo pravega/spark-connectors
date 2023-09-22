@@ -68,7 +68,7 @@ case class PravegaBatchPartitionReader(
       {
         case e: TruncatedDataException =>
           log.warn("next: TruncatedDataException while reading data", e)
-          return false
+          return next()
       }
       true
     } else false

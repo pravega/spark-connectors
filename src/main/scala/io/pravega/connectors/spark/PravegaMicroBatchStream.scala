@@ -151,7 +151,7 @@ class PravegaMicroBatchStream(
         case e: SegmentTruncatedException => PravegaSourceOffset(PravegaUtils.getStreamInfo(streamManager, scopeName, streamName).getHeadStreamCut)
       }
     }
-    log.info(s"nextStreamCut = ${nextStreamCut.streamCut}")
+    log.info(s"nextStreamCut = ${nextStreamCut.streamCut} , limits : ${limits}")
     nextStreamCut
   }
 
@@ -159,8 +159,10 @@ class PravegaMicroBatchStream(
     val approxBytesPerTrigger = Option(options.get(
           PravegaSourceProvider.APPROX_BYTES_PER_TRIGGER)).get.map(_.toLong)
     if ( approxBytesPerTrigger.isDefined) {
+        log.info(s"approxBytesPerTrigger  : = ${approxBytesPerTrigger}")
         ReadLimit.maxRows(approxBytesPerTrigger.get)
     } else {
+      log.info("approxBytesPerTrigger is not configured")
       super.getDefaultReadLimit
     }
   }
