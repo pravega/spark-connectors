@@ -142,7 +142,6 @@ class PravegaMicroBatchStream(
       PravegaSourceOffset(PravegaUtils.getStreamInfo(streamManager, scopeName, streamName).getTailStreamCut)
     } else {
       val upperLimit = limits.find(_.isInstanceOf[ReadMaxRows]).map(_.asInstanceOf[ReadMaxRows])
-      PravegaSourceOffset(batchClientFactory.getNextStreamCut(startOffset, upperLimit.get.maxRows()))
       try {
         PravegaSourceOffset(batchClientFactory.getNextStreamCut(startOffset, upperLimit.get.maxRows()))
       }
