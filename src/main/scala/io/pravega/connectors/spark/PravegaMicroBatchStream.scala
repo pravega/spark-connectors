@@ -18,11 +18,12 @@
 package io.pravega.connectors.spark
 
 import io.pravega.client.admin.StreamManager
+import io.pravega.client.segment.impl.SegmentTruncatedException
 import io.pravega.client.stream.{Stream, StreamCut}
 import io.pravega.client.{BatchClientFactory, ClientConfig}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
-import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, Offset}
+import org.apache.spark.sql.connector.read.streaming.{MicroBatchStream, Offset, ReadAllAvailable, ReadLimit, ReadMaxRows, SupportsAdmissionControl}
 import org.apache.spark.sql.connector.read.{InputPartition, PartitionReaderFactory}
 import resource.managed
 
@@ -43,12 +44,13 @@ class PravegaMicroBatchStream(
                                startStreamCut: PravegaStreamCut,
                                endStreamCut: PravegaStreamCut
                              )
-  extends MicroBatchStream with Logging {
+  extends MicroBatchStream with SupportsAdmissionControl with Logging {
 
   protected var batchStartStreamCut: StreamCut = _
   protected var batchEndStreamCut: StreamCut = _
   log.info(s"Initializing micro-batch stream: ${this}")
 
+  private val batchClientFactory = BatchClientFactory.withScope(scopeName, clientConfig)
 
   private val streamManager = StreamManager.create(clientConfig)
 
@@ -128,5 +130,39 @@ class PravegaMicroBatchStream(
   override def toString(): String = {
     s"PravegaMicroBatchStream{clientConfig=${clientConfig}, scopeName=${scopeName}, streamName=${streamName}" +
       s" startStreamCut=${startStreamCut}, endStreamCut=${endStreamCut}}"
+  }
+
+  override def latestOffset(start: Offset, readLimit: ReadLimit): Offset = {
+    val startOffset = Option(start)
+      .map(_.asInstanceOf[PravegaSourceOffset].streamCut).get
+    val limits: Seq[ReadLimit] = readLimit match {
+      case rows => Seq(rows)
+    }
+    val nextStreamCut = if (limits.exists(_.isInstanceOf[ReadAllAvailable])) {
+      PravegaSourceOffset(PravegaUtils.getStreamInfo(streamManager, scopeName, streamName).getTailStreamCut)
+    } else {
+      val upperLimit = limits.find(_.isInstanceOf[ReadMaxRows]).map(_.asInstanceOf[ReadMaxRows])
+      try {
+        PravegaSourceOffset(batchClientFactory.getNextStreamCut(startOffset, upperLimit.get.maxRows()))
+      }
+      catch
+      {
+        case e: SegmentTruncatedException => PravegaSourceOffset(PravegaUtils.getStreamInfo(streamManager, scopeName, streamName).getHeadStreamCut)
+      }
+    }
+    log.info(s"nextStreamCut = ${nextStreamCut.streamCut} , limits : ${limits}")
+    nextStreamCut
+  }
+
+  override def getDefaultReadLimit: ReadLimit = {
+    val approxBytesPerTrigger = Option(options.get(
+          PravegaSourceProvider.APPROX_BYTES_PER_TRIGGER)).get.map(_.toLong)
+    if ( approxBytesPerTrigger.isDefined) {
+        log.info(s"approxBytesPerTrigger  : = ${approxBytesPerTrigger}")
+        ReadLimit.maxRows(approxBytesPerTrigger.get)
+    } else {
+      log.info("approxBytesPerTrigger is not configured")
+      super.getDefaultReadLimit
+    }
   }
 }

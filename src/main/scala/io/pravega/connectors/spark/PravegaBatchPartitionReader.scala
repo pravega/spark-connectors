@@ -18,6 +18,7 @@
 package io.pravega.connectors.spark
 
 import io.pravega.client.batch.SegmentRange
+import io.pravega.client.stream.TruncatedDataException
 import io.pravega.client.stream.impl.ByteBufferSerializer
 import io.pravega.client.{BatchClientFactory, ClientConfig}
 import org.apache.spark.internal.Logging
@@ -52,13 +53,23 @@ case class PravegaBatchPartitionReader(
   override def next(): Boolean = {
     if (iterator.hasNext) {
       val offset = iterator.getOffset
-      val event = iterator.next()
-      nextRow = converter.toUnsafeRow(
-        event.array,
-        segmentRange.getScope,
-        segmentRange.getStreamName,
-        segmentRange.getSegmentId,
-        offset)
+
+      try
+      {
+        val event = iterator.next()
+        nextRow = converter.toUnsafeRow(
+          event.array,
+          segmentRange.getScope,
+          segmentRange.getStreamName,
+          segmentRange.getSegmentId,
+          offset)
+      }
+      catch
+      {
+        case e: TruncatedDataException =>
+          log.warn("next: TruncatedDataException while reading data. Data was deleted, skipping over missing entries.", e)
+          return next()
+      }
       true
     } else false
   }
