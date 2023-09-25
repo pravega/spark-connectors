@@ -67,7 +67,7 @@ case class PravegaBatchPartitionReader(
       catch
       {
         case e: TruncatedDataException =>
-          log.warn("next: TruncatedDataException while reading data", e)
+          log.warn("next: TruncatedDataException while reading data. Data was deleted, skipping over missing entries.", e)
           return next()
       }
       true
