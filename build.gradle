@@ -1,0 +1,155 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+
+buildscript {
+    repositories {
+        mavenCentral()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        classpath "com.github.jengelman.gradle.plugins:shadow:${shadowGradlePlugin}"
+        classpath "com.jfrog.bintray.gradle:gradle-bintray-plugin:${bintrayPluginVersion}"
+        classpath "org.ajoberstar:gradle-git:${gradleGitPluginVersion}"
+    }
+}
+
+plugins {
+    id "com.github.maiflai.scalatest" version "0.25"
+}
+
+apply plugin: 'eclipse'
+apply from: 'gradle/java.gradle'
+apply from: "gradle/scala.gradle"
+apply from: 'gradle/maven.gradle'
+
+apply from: 'gradle/bintray.gradle'
+apply plugin: 'org.ajoberstar.grgit'
+
+group = "io.pravega"
+version = getProjectVersion()
+
+description = """Pravega Spark Connector"""
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+    maven {
+        url "https://maven.pkg.github.com/pravega/pravega"
+        credentials {
+            username = "pravega-public"
+            password = "\u0067\u0068\u0070\u005F\u0048\u0034\u0046\u0079\u0047\u005A\u0031\u006B\u0056\u0030\u0051\u0070\u006B\u0079\u0058\u006D\u0035\u0063\u0034\u0055\u0033\u006E\u0032\u0065\u0078\u0039\u0032\u0046\u006E\u0071\u0033\u0053\u0046\u0076\u005A\u0049"
+        }
+    }
+    maven { url "https://repository.apache.org/snapshots" }
+    maven { url "https://oss.sonatype.org/content/repositories/snapshots" }
+    if (findProperty("repositoryUrl")) {
+        maven {
+            url findProperty("repositoryUrl")
+        }
+    }
+}
+
+configurations {
+    shadowOnly {
+    }
+    all {
+        testImplementation.extendsFrom(compileOnly)
+        testImplementation.exclude group: 'io.netty', module: 'netty-all'
+        resolutionStrategy {
+            force "com.google.guava:guava:" + guavaVersion
+        }
+    }
+}
+
+dependencies {
+    compile group: 'io.pravega', name: 'pravega-client', version: pravegaVersion
+    compile group: 'org.scala-lang', name: 'scala-library', version: scalaVersion
+    compile group: 'org.scala-lang', name: 'scala-reflect', version: scalaVersion
+    compile group: 'org.scala-lang', name: 'scala-compiler', version: scalaVersion
+    compile group: 'org.scala-lang.modules', name: 'scala-java8-compat_2.12', version: scalaJava8CompatVersion
+    compile group: 'com.jsuereth', name: 'scala-arm_2.12', version: scalaArmVersion
+
+    compileOnly group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
+    shadowOnly group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
+
+    testImplementation group: 'junit', name: 'junit', version: junitVersion
+    testImplementation group: 'io.pravega', name: 'pravega-standalone', version: pravegaVersion
+    testImplementation (group: 'org.apache.zookeeper', name: 'zookeeper') {
+        version {
+            strictly '3.5.9'
+        }
+    }
+    testImplementation group: 'org.scalatest', name: 'scalatest_2.12', version: scalaTestVersion
+    testImplementation group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion
+    testImplementation group: 'org.apache.spark', name: 'spark-core_2.12', version: sparkVersion, classifier: 'tests'
+    testImplementation group: 'org.apache.spark', name: 'spark-catalyst_2.12', version: sparkVersion, classifier: 'tests'
+    testImplementation group: 'org.apache.spark', name: 'spark-sql_2.12', version: sparkVersion, classifier: 'tests'
+    testImplementation group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: jacksonVersion
+    testImplementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
+    testImplementation group: 'com.fasterxml.jackson.module', name: 'jackson-module-scala_2.12', version: jacksonVersion
+    testImplementation group: 'io.pravega', name: 'pravega-test-integration', version: pravegaVersion
+}
+
+configurations {
+    shadowOnly {
+    }
+    compile.exclude group: 'ch.qos.logback', module: 'logback-classic'
+    compile.exclude group: 'com.sun.jersey', module: 'jersey-core'
+}
+
+test {
+    test.reports.html.enabled = false
+    dependsOn 'cleanTest'
+}
+
+shadowJar {
+    classifier = null
+    version = version
+    zip64 = true
+    mergeServiceFiles()
+
+    // relocate pravega client's dependencies to minimize conflicts
+    relocate "org.apache.commons", "io.pravega.shaded.org.apache.commons"
+    relocate "com.google", "io.pravega.shaded.com.google"
+    relocate "io.grpc", "io.pravega.shaded.io.grpc"
+    relocate "com.squareup.okhttp", "io.pravega.shaded.com.squareup.okhttp"
+    relocate "okio", "io.pravega.shaded.okio"
+    relocate "io.opencensus", "io.pravega.shaded.io.opencensus"
+    relocate "io.netty", "io.pravega.shaded.io.netty"
+    relocate "com.fasterxml.jackson", "io.pravega.shaded.com.fasterxml.jackson"
+    relocate 'META-INF/native/libnetty', 'META-INF/native/libio_pravega_shaded_netty'
+    relocate 'META-INF/native/netty', 'META-INF/native/io_pravega_shaded_netty'
+}
+
+javadoc {
+    title = "Pravega Spark Connector"
+    failOnError = false
+    exclude "**/impl/**";
+}
+
+def getProjectVersion() {
+    String ver = connectorVersion
+    if (ver.contains("-SNAPSHOT")) {
+        String versionLabel = ver.substring(0, ver.indexOf("-SNAPSHOT"))
+        def count = grgit.log(includes:['HEAD']).size()
+        def commitId = "${grgit.head().abbreviatedId}"
+        ver = versionLabel + "-" + count + "." + commitId + "-SNAPSHOT"
+    }
+    return ver
+}

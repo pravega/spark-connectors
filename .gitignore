@@ -1,0 +1,16 @@
+*.ipr
+*.iml
+*.iws
+*.log
+.classpath
+.DS_Store
+.gradle/
+.idea/
+.project
+.settings
+build/
+metastore_db/
+out/
+spark-warehouse/
+travis.log
+*input.txt
