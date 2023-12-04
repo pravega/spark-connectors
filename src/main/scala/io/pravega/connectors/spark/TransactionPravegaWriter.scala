@@ -141,6 +141,7 @@ class TransactionPravegaWriter(
     log.debug(s"abort: END: epochId=$epochId, messages=${messages.mkString(",")}")
   }
 
+  override def useCommitCoordinator() = true
 
   override def createBatchWriterFactory(info: PhysicalWriteInfo): TransactionPravegaWriterFactory =
     TransactionPravegaWriterFactory(scopeName, streamName, clientConfig, transactionTimeoutMs, schema)

@@ -47,6 +47,8 @@ class NonTransactionPravegaWriter(
                      schema: StructType)
   extends StreamingWrite with BatchWrite with Logging {
 
+  override def useCommitCoordinator() = true
+
   override def createBatchWriterFactory(info: PhysicalWriteInfo):  NonTransactionPravegaWriterFactory =
     NonTransactionPravegaWriterFactory(scopeName, streamName, clientConfig, schema)
 
